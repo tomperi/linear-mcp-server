@@ -6,7 +6,7 @@ This server provides integration with Linear's issue tracking system through MCP
 
 ## Installation
 
-1. Create or get a Linear API key for your team: https://linear.app/YOUR-TEAM/settings/api
+1. Create or get a Linear API key for your team: [https://linear.app/YOUR-TEAM/settings/api](https://linear.app/YOUR-TEAM/settings/api)
 
 2. Add server config to Claude Desktop:
    - MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -99,21 +99,25 @@ Some example prompts you can use with Claude Desktop to interact with Linear:
 ## Development
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
-2. Configure Linear API key in `.env`:
-```
+1. Configure Linear API key in `.env`:
+
+```bash
 LINEAR_API_KEY=your_api_key_here
 ```
 
-3. Build the server:
+1. Build the server:
+
 ```bash
 npm run build
 ```
 
 For development with auto-rebuild:
+
 ```bash
 npm run watch
 ```
