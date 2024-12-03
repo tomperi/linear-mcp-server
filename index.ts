@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { LinearClient, LinearDocument, Issue, User, Team, WorkflowState } from "@linear/sdk";
+import { LinearClient, LinearDocument, Issue, User, Team, WorkflowState, IssueLabel } from "@linear/sdk";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -59,58 +59,125 @@ interface AddCommentArgs {
   displayIconUrl?: string;
 }
 
+class RateLimiter {
+  private queue: (() => Promise<any>)[] = [];
+  private processing = false;
+  private lastRequestTime = 0;
+  private readonly requestsPerHour = 1400; // Leave some buffer below 1500
+  private readonly minDelayMs = 3600000 / this.requestsPerHour;
+
+  async enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      this.processQueue();
+    });
+  }
+
+  private async processQueue() {
+    if (this.processing || this.queue.length === 0) return;
+    this.processing = true;
+
+    while (this.queue.length > 0) {
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+      if (timeSinceLastRequest < this.minDelayMs) {
+        await new Promise(resolve => setTimeout(resolve, this.minDelayMs - timeSinceLastRequest));
+      }
+
+      const fn = this.queue.shift();
+      if (fn) {
+        this.lastRequestTime = Date.now();
+        await fn();
+      }
+    }
+
+    this.processing = false;
+  }
+
+  async batch<T>(items: any[], batchSize: number, fn: (item: any) => Promise<T>): Promise<T[]> {
+    const results: T[] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(item => this.enqueue(() => fn(item)))
+      );
+      results.push(...batchResults);
+    }
+    return results;
+  }
+}
+
 class LinearMCPClient {
   private client: LinearClient;
+  private rateLimiter: RateLimiter;
 
   constructor(apiKey: string) {
     if (!apiKey) throw new Error("LINEAR_API_KEY environment variable is required");
     this.client = new LinearClient({ apiKey });
+    this.rateLimiter = new RateLimiter();
+  }
+
+  private async getIssueDetails(issue: Issue) {
+    const [statePromise, assigneePromise, teamPromise] = [
+      issue.state,
+      issue.assignee,
+      issue.team
+    ];
+
+    const [state, assignee, team] = await Promise.all([
+      this.rateLimiter.enqueue(async () => statePromise ? await statePromise : null),
+      this.rateLimiter.enqueue(async () => assigneePromise ? await assigneePromise : null),
+      this.rateLimiter.enqueue(async () => teamPromise ? await teamPromise : null)
+    ]);
+
+    return {
+      state,
+      assignee,
+      team
+    };
   }
 
   async listIssues() {
-    const { nodes: issues } = await this.client.issues({
-      first: 50,
-      orderBy: LinearDocument.PaginationOrderBy.UpdatedAt
-    });
-
-    const issuesWithDetails = await Promise.all(
-      issues.map(async (issue) => {
-        const [state, assignee, team] = await Promise.all([
-          issue.state,
-          issue.assignee,
-          issue.team
-        ]);
-
-        return {
-          uri: `linear-issue:///${issue.id}`,
-          mimeType: "application/json",
-          name: issue.title,
-          description: `Linear issue ${issue.identifier}: ${issue.title}`,
-          metadata: {
-            identifier: issue.identifier,
-            priority: issue.priority,
-            status: state ? await state.name : undefined,
-            assignee: assignee ? await assignee.name : undefined,
-            team: team ? await team.name : undefined,
-            updatedAt: issue.updatedAt,
-            url: issue.url
-          }
-        };
+    const { nodes: issues } = await this.rateLimiter.enqueue(() =>
+      this.client.issues({
+        first: 50,
+        orderBy: LinearDocument.PaginationOrderBy.UpdatedAt
       })
     );
+
+    const issuesWithDetails = await this.rateLimiter.batch(issues, 5, async (issue) => {
+      const details = await this.getIssueDetails(issue);
+
+      return {
+        uri: `linear-issue:///${issue.id}`,
+        mimeType: "application/json",
+        name: issue.title,
+        description: `Linear issue ${issue.identifier}: ${issue.title}`,
+        metadata: {
+          identifier: issue.identifier,
+          priority: issue.priority,
+          status: details.state ? await details.state.name : undefined,
+          assignee: details.assignee ? await details.assignee.name : undefined,
+          team: details.team ? await details.team.name : undefined,
+        }
+      };
+    });
 
     return issuesWithDetails;
   }
 
   async getIssue(issueId: string) {
-    const issue = await this.client.issue(issueId);
+    const issue = await this.rateLimiter.enqueue(() => this.client.issue(issueId));
     if (!issue) throw new Error(`Issue ${issueId} not found`);
 
-    const [state, assignee, team] = await Promise.all([
-      issue.state,
-      issue.assignee,
-      issue.team
-    ]);
+    const details = await this.getIssueDetails(issue);
 
     return {
       id: issue.id,
@@ -118,9 +185,9 @@ class LinearMCPClient {
       title: issue.title,
       description: issue.description,
       priority: issue.priority,
-      status: state?.name,
-      assignee: assignee?.name,
-      team: team?.name,
+      status: details.state?.name,
+      assignee: details.assignee?.name,
+      team: details.team?.name,
       url: issue.url
     };
   }
@@ -156,71 +223,38 @@ class LinearMCPClient {
   }
 
   async searchIssues(args: SearchIssuesArgs) {
-    const filter: any = {};
-
-    if (args.query) {
-      filter.or = [
-        { title: { contains: args.query } },
-        { description: { contains: args.query } }
-      ];
-    }
-
-    if (args.teamId) {
-      filter.team = { id: { eq: args.teamId } };
-    }
-
-    if (args.status) {
-      filter.state = { name: { eq: args.status } };
-    }
-
-    if (args.assigneeId) {
-      filter.assignee = { id: { eq: args.assigneeId } };
-    }
-
-    if (args.labels && args.labels.length > 0) {
-      filter.labels = {
-        some: {
-          name: { in: args.labels }
-        }
-      };
-    }
-
-    if (args.priority) {
-      filter.priority = { eq: args.priority };
-    }
-
-    if (args.estimate) {
-      filter.estimate = { eq: args.estimate };
-    }
-
-    const { nodes: issues } = await this.client.issues({
-      filter,
-      first: args.limit || 10,
-      includeArchived: args.includeArchived
-    });
-
-    const issuesWithDetails = await Promise.all(
-      issues.map(async (issue) => {
-        const [state, assignee, labels] = await Promise.all([
-          issue.state,
-          issue.assignee,
-          issue.labels()
-        ]);
-
-        return {
-          id: issue.id,
-          identifier: issue.identifier,
-          title: issue.title,
-          description: issue.description,
-          priority: issue.priority,
-          estimate: issue.estimate,
-          status: state ? await state.name : undefined,
-          assignee: assignee ? await assignee.name : undefined,
-          labels: labels.nodes.map(label => label.name),
-          url: issue.url
-        };
+    const { nodes: issues } = await this.rateLimiter.enqueue(() =>
+      this.client.issues({
+        filter: this.buildSearchFilter(args),
+        first: args.limit || 10,
+        includeArchived: args.includeArchived
       })
     );
+
+    const issuesWithDetails = await this.rateLimiter.batch(issues, 5, async (issue) => {
+      const statePromise = issue.state;
+      const assigneePromise = issue.assignee;
+      const labelsPromise = issue.labels();
+
+      const [state, assignee, labels] = await Promise.all([
+        this.rateLimiter.enqueue(async () => statePromise ? await statePromise : null),
+        this.rateLimiter.enqueue(async () => assigneePromise ? await assigneePromise : null),
+        this.rateLimiter.enqueue(async () => labelsPromise)
+      ]);
+
+      return {
+        id: issue.id,
+        identifier: issue.identifier,
+        title: issue.title,
+        description: issue.description,
+        priority: issue.priority,
+        estimate: issue.estimate,
+        status: state?.name,
+        assignee: assignee?.name,
+        labels: labels?.nodes?.map((label: IssueLabel) => label.name) || [],
+        url: issue.url
+      };
+    });
 
     return issuesWithDetails;
   }
@@ -267,29 +301,31 @@ class LinearMCPClient {
   }
 
   async getTeamIssues(teamId: string) {
-    const team = await this.client.team(teamId);
+    const team = await this.rateLimiter.enqueue(() => this.client.team(teamId));
     if (!team) throw new Error(`Team ${teamId} not found`);
 
-    const { nodes: issues } = await team.issues();
-    const issuesWithDetails = await Promise.all(
-      issues.map(async (issue) => {
-        const [state, assignee] = await Promise.all([
-          issue.state,
-          issue.assignee
-        ]);
+    const { nodes: issues } = await this.rateLimiter.enqueue(() => team.issues());
 
-        return {
-          id: issue.id,
-          identifier: issue.identifier,
-          title: issue.title,
-          description: issue.description,
-          priority: issue.priority,
-          status: state ? await state.name : undefined,
-          assignee: assignee ? await assignee.name : undefined,
-          url: issue.url
-        };
-      })
-    );
+    const issuesWithDetails = await this.rateLimiter.batch(issues, 5, async (issue) => {
+      const statePromise = issue.state;
+      const assigneePromise = issue.assignee;
+
+      const [state, assignee] = await Promise.all([
+        this.rateLimiter.enqueue(async () => statePromise ? await statePromise : null),
+        this.rateLimiter.enqueue(async () => assigneePromise ? await assigneePromise : null)
+      ]);
+
+      return {
+        id: issue.id,
+        identifier: issue.identifier,
+        title: issue.title,
+        description: issue.description,
+        priority: issue.priority,
+        status: state?.name,
+        assignee: assignee?.name,
+        url: issue.url
+      };
+    });
 
     return issuesWithDetails;
   }
@@ -343,6 +379,47 @@ class LinearMCPClient {
         active: user.active
       }))
     };
+  }
+
+  private buildSearchFilter(args: SearchIssuesArgs): any {
+    const filter: any = {};
+
+    if (args.query) {
+      filter.or = [
+        { title: { contains: args.query } },
+        { description: { contains: args.query } }
+      ];
+    }
+
+    if (args.teamId) {
+      filter.team = { id: { eq: args.teamId } };
+    }
+
+    if (args.status) {
+      filter.state = { name: { eq: args.status } };
+    }
+
+    if (args.assigneeId) {
+      filter.assignee = { id: { eq: args.assigneeId } };
+    }
+
+    if (args.labels && args.labels.length > 0) {
+      filter.labels = {
+        some: {
+          name: { in: args.labels }
+        }
+      };
+    }
+
+    if (args.priority) {
+      filter.priority = { eq: args.priority };
+    }
+
+    if (args.estimate) {
+      filter.estimate = { eq: args.estimate };
+    }
+
+    return filter;
   }
 }
 
