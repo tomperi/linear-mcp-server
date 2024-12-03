@@ -59,20 +59,51 @@ interface AddCommentArgs {
   displayIconUrl?: string;
 }
 
+interface RateLimiterMetrics {
+  totalRequests: number;
+  requestsInLastHour: number;
+  averageRequestTime: number;
+  queueLength: number;
+  lastRequestTime: number;
+}
+
+interface LinearIssueResponse {
+  identifier: string;
+  title: string;
+  priority: number | null;
+  status: string | null;
+  stateName?: string;
+  url: string;
+}
+
 class RateLimiter {
+  public readonly requestsPerHour = 1400;
   private queue: (() => Promise<any>)[] = [];
   private processing = false;
   private lastRequestTime = 0;
-  private readonly requestsPerHour = 1400; // Leave some buffer below 1500
   private readonly minDelayMs = 3600000 / this.requestsPerHour;
+  private requestTimes: number[] = [];
+  private requestTimestamps: number[] = [];
 
-  async enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  async enqueue<T>(fn: () => Promise<T>, operation?: string): Promise<T> {
+    const startTime = Date.now();
+    const queuePosition = this.queue.length;
+
+    console.log(`[Linear API] Enqueueing request${operation ? ` for ${operation}` : ''} (Queue position: ${queuePosition})`);
+
     return new Promise((resolve, reject) => {
       this.queue.push(async () => {
         try {
+          console.log(`[Linear API] Starting request${operation ? ` for ${operation}` : ''}`);
           const result = await fn();
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+
+          console.log(`[Linear API] Completed request${operation ? ` for ${operation}` : ''} (Duration: ${duration}ms)`);
+          this.trackRequest(startTime, endTime, operation);
           resolve(result);
         } catch (error) {
+          console.error(`[Linear API] Error in request${operation ? ` for ${operation}` : ''}: `, error);
           reject(error);
         }
       });
@@ -88,7 +119,9 @@ class RateLimiter {
       const now = Date.now();
       const timeSinceLastRequest = now - this.lastRequestTime;
       if (timeSinceLastRequest < this.minDelayMs) {
-        await new Promise(resolve => setTimeout(resolve, this.minDelayMs - timeSinceLastRequest));
+        const waitTime = this.minDelayMs - timeSinceLastRequest;
+        console.log(`[Linear API] Rate limiting - waiting ${waitTime}ms before next request`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
       }
 
       const fn = this.queue.shift();
@@ -98,25 +131,56 @@ class RateLimiter {
       }
     }
 
+    console.log(`[Linear API] Queue processed - ${this.getMetrics().requestsInLastHour} requests in last hour`);
     this.processing = false;
   }
 
-  async batch<T>(items: any[], batchSize: number, fn: (item: any) => Promise<T>): Promise<T[]> {
+  async batch<T>(items: any[], batchSize: number, fn: (item: any) => Promise<T>, operation?: string): Promise<T[]> {
+    console.log(`[Linear API] Starting batch operation${operation ? ` for ${operation}` : ''} with ${items.length} items (batch size: ${batchSize})`);
     const results: T[] = [];
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
+      console.log(`[Linear API] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(items.length/batchSize)}`);
       const batchResults = await Promise.all(
-        batch.map(item => this.enqueue(() => fn(item)))
+        batch.map(item => this.enqueue(() => fn(item), operation))
       );
       results.push(...batchResults);
     }
+    console.log(`[Linear API] Completed batch operation${operation ? ` for ${operation}` : ''}`);
     return results;
+  }
+
+  private trackRequest(startTime: number, endTime: number, operation?: string) {
+    const duration = endTime - startTime;
+    this.requestTimes.push(duration);
+    this.requestTimestamps.push(startTime);
+
+    // Keep only last hour of requests
+    const oneHourAgo = Date.now() - 3600000;
+    this.requestTimestamps = this.requestTimestamps.filter(t => t > oneHourAgo);
+    this.requestTimes = this.requestTimes.slice(-this.requestTimestamps.length);
+  }
+
+  getMetrics(): RateLimiterMetrics {
+    const now = Date.now();
+    const oneHourAgo = now - 3600000;
+    const recentRequests = this.requestTimestamps.filter(t => t > oneHourAgo);
+
+    return {
+      totalRequests: this.requestTimestamps.length,
+      requestsInLastHour: recentRequests.length,
+      averageRequestTime: this.requestTimes.length > 0
+        ? this.requestTimes.reduce((a, b) => a + b, 0) / this.requestTimes.length
+        : 0,
+      queueLength: this.queue.length,
+      lastRequestTime: this.lastRequestTime
+    };
   }
 }
 
 class LinearMCPClient {
   private client: LinearClient;
-  private rateLimiter: RateLimiter;
+  public readonly rateLimiter: RateLimiter;
 
   constructor(apiKey: string) {
     if (!apiKey) throw new Error("LINEAR_API_KEY environment variable is required");
@@ -144,52 +208,74 @@ class LinearMCPClient {
     };
   }
 
+  private addMetricsToResponse(response: any) {
+    const metrics = this.rateLimiter.getMetrics();
+    return {
+      ...response,
+      metadata: {
+        ...response.metadata,
+        apiMetrics: {
+          requestsInLastHour: metrics.requestsInLastHour,
+          remainingRequests: this.rateLimiter.requestsPerHour - metrics.requestsInLastHour,
+          averageRequestTime: `${Math.round(metrics.averageRequestTime)}ms`,
+          queueLength: metrics.queueLength,
+          lastRequestTime: new Date(metrics.lastRequestTime).toISOString()
+        }
+      }
+    };
+  }
+
   async listIssues() {
-    const { nodes: issues } = await this.rateLimiter.enqueue(() =>
-      this.client.issues({
+    const result = await this.rateLimiter.enqueue(
+      () => this.client.issues({
         first: 50,
         orderBy: LinearDocument.PaginationOrderBy.UpdatedAt
-      })
+      }),
+      'listIssues'
     );
 
-    const issuesWithDetails = await this.rateLimiter.batch(issues, 5, async (issue) => {
-      const details = await this.getIssueDetails(issue);
+    const issuesWithDetails = await this.rateLimiter.batch(
+      result.nodes,
+      5,
+      async (issue) => {
+        const details = await this.getIssueDetails(issue);
+        return {
+          uri: `linear-issue:///${issue.id}`,
+          mimeType: "application/json",
+          name: issue.title,
+          description: `Linear issue ${issue.identifier}: ${issue.title}`,
+          metadata: {
+            identifier: issue.identifier,
+            priority: issue.priority,
+            status: details.state ? await details.state.name : undefined,
+            assignee: details.assignee ? await details.assignee.name : undefined,
+            team: details.team ? await details.team.name : undefined,
+          }
+        };
+      },
+      'getIssueDetails'
+    );
 
-      return {
-        uri: `linear-issue:///${issue.id}`,
-        mimeType: "application/json",
-        name: issue.title,
-        description: `Linear issue ${issue.identifier}: ${issue.title}`,
-        metadata: {
-          identifier: issue.identifier,
-          priority: issue.priority,
-          status: details.state ? await details.state.name : undefined,
-          assignee: details.assignee ? await details.assignee.name : undefined,
-          team: details.team ? await details.team.name : undefined,
-        }
-      };
-    });
-
-    return issuesWithDetails;
+    return this.addMetricsToResponse(issuesWithDetails);
   }
 
   async getIssue(issueId: string) {
-    const issue = await this.rateLimiter.enqueue(() => this.client.issue(issueId));
-    if (!issue) throw new Error(`Issue ${issueId} not found`);
+    const result = await this.rateLimiter.enqueue(() => this.client.issue(issueId));
+    if (!result) throw new Error(`Issue ${issueId} not found`);
 
-    const details = await this.getIssueDetails(issue);
+    const details = await this.getIssueDetails(result);
 
-    return {
-      id: issue.id,
-      identifier: issue.identifier,
-      title: issue.title,
-      description: issue.description,
-      priority: issue.priority,
+    return this.addMetricsToResponse({
+      id: result.id,
+      identifier: result.identifier,
+      title: result.title,
+      description: result.description,
+      priority: result.priority,
       status: details.state?.name,
       assignee: details.assignee?.name,
       team: details.team?.name,
-      url: issue.url
-    };
+      url: result.url
+    });
   }
 
   async createIssue(args: CreateIssueArgs) {
@@ -223,7 +309,7 @@ class LinearMCPClient {
   }
 
   async searchIssues(args: SearchIssuesArgs) {
-    const { nodes: issues } = await this.rateLimiter.enqueue(() =>
+    const result = await this.rateLimiter.enqueue(() =>
       this.client.issues({
         filter: this.buildSearchFilter(args),
         first: args.limit || 10,
@@ -231,7 +317,7 @@ class LinearMCPClient {
       })
     );
 
-    const issuesWithDetails = await this.rateLimiter.batch(issues, 5, async (issue) => {
+    const issuesWithDetails = await this.rateLimiter.batch(result.nodes, 5, async (issue) => {
       const statePromise = issue.state;
       const assigneePromise = issue.assignee;
       const labelsPromise = issue.labels();
@@ -256,7 +342,7 @@ class LinearMCPClient {
       };
     });
 
-    return issuesWithDetails;
+    return this.addMetricsToResponse(issuesWithDetails);
   }
 
   async getUserIssues(args: GetUserIssuesArgs) {
@@ -279,7 +365,7 @@ class LinearMCPClient {
       })
     );
 
-    return issuesWithDetails;
+    return this.addMetricsToResponse(issuesWithDetails);
   }
 
   async addComment(args: AddCommentArgs) {
@@ -327,7 +413,7 @@ class LinearMCPClient {
       };
     });
 
-    return issuesWithDetails;
+    return this.addMetricsToResponse(issuesWithDetails);
   }
 
   async getViewer() {
@@ -337,7 +423,7 @@ class LinearMCPClient {
       this.client.organization
     ]);
 
-    return {
+    return this.addMetricsToResponse({
       id: viewer.id,
       name: viewer.name,
       email: viewer.email,
@@ -352,7 +438,7 @@ class LinearMCPClient {
         name: organization.name,
         urlKey: organization.urlKey
       }
-    };
+    });
   }
 
   async getOrganization() {
@@ -362,7 +448,7 @@ class LinearMCPClient {
       organization.users()
     ]);
 
-    return {
+    return this.addMetricsToResponse({
       id: organization.id,
       name: organization.name,
       urlKey: organization.urlKey,
@@ -378,7 +464,7 @@ class LinearMCPClient {
         admin: user.admin,
         active: user.active
       }))
-    };
+    });
   }
 
   private buildSearchFilter(args: SearchIssuesArgs): any {
@@ -652,6 +738,15 @@ Resource patterns:
 The server uses the authenticated user's permissions for all operations.`
 };
 
+interface MCPMetricsResponse {
+  apiMetrics: {
+    requestsInLastHour: number;
+    remainingRequests: number;
+    averageRequestTime: string;
+    queueLength: number;
+  }
+}
+
 async function main() {
   dotenv.config();
 
@@ -779,9 +874,28 @@ async function main() {
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
+    let metrics: RateLimiterMetrics = {
+      totalRequests: 0,
+      requestsInLastHour: 0,
+      averageRequestTime: 0,
+      queueLength: 0,
+      lastRequestTime: Date.now()
+    };
+
     try {
       const { name, arguments: args } = request.params;
       if (!args) throw new Error("Missing arguments");
+
+      metrics = linearClient.rateLimiter.getMetrics();
+
+      const baseResponse: MCPMetricsResponse = {
+        apiMetrics: {
+          requestsInLastHour: metrics.requestsInLastHour,
+          remainingRequests: linearClient.rateLimiter.requestsPerHour - metrics.requestsInLastHour,
+          averageRequestTime: `${Math.round(metrics.averageRequestTime)}ms`,
+          queueLength: metrics.queueLength
+        }
+      };
 
       switch (name) {
         case "linear_create_issue": {
@@ -801,7 +915,8 @@ async function main() {
           return {
             content: [{
               type: "text",
-              text: `Created issue ${issue.identifier}: ${issue.title}\nURL: ${issue.url}`
+              text: `Created issue ${issue.identifier}: ${issue.title}\nURL: ${issue.url}`,
+              metadata: baseResponse
             }]
           };
         }
@@ -823,7 +938,8 @@ async function main() {
           return {
             content: [{
               type: "text",
-              text: `Updated issue ${issue.identifier}\nURL: ${issue.url}`
+              text: `Updated issue ${issue.identifier}\nURL: ${issue.url}`,
+              metadata: baseResponse
             }]
           };
         }
@@ -846,10 +962,11 @@ async function main() {
             content: [{
               type: "text",
               text: `Found ${issues.length} issues:\n${
-                issues.map(issue =>
+                issues.map((issue: LinearIssueResponse) =>
                   `- ${issue.identifier}: ${issue.title}\n  Priority: ${issue.priority || 'None'}\n  Status: ${issue.status || 'None'}\n  ${issue.url}`
                 ).join('\n')
-              }`
+              }`,
+              metadata: baseResponse
             }]
           };
         }
@@ -865,10 +982,11 @@ async function main() {
             content: [{
               type: "text",
               text: `Found ${issues.length} issues:\n${
-                issues.map(issue =>
+                issues.map((issue: LinearIssueResponse) =>
                   `- ${issue.identifier}: ${issue.title}\n  Priority: ${issue.priority || 'None'}\n  Status: ${issue.stateName}\n  ${issue.url}`
                 ).join('\n')
-              }`
+              }`,
+              metadata: baseResponse
             }]
           };
         }
@@ -888,7 +1006,8 @@ async function main() {
           return {
             content: [{
               type: "text",
-              text: `Added comment to issue ${issue?.identifier}\nURL: ${comment.url}`
+              text: `Added comment to issue ${issue?.identifier}\nURL: ${comment.url}`,
+              metadata: baseResponse
             }]
           };
         }
@@ -898,12 +1017,26 @@ async function main() {
       }
     } catch (error) {
       console.error("Error executing tool:", error);
+
+      const errorResponse: MCPMetricsResponse = {
+        apiMetrics: {
+          requestsInLastHour: metrics.requestsInLastHour,
+          remainingRequests: linearClient.rateLimiter.requestsPerHour - metrics.requestsInLastHour,
+          averageRequestTime: `${Math.round(metrics.averageRequestTime)}ms`,
+          queueLength: metrics.queueLength
+        }
+      };
+
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
             error: error instanceof Error ? error.message : String(error)
-          })
+          }),
+          metadata: {
+            error: true,
+            ...errorResponse
+          }
         }]
       };
     }
