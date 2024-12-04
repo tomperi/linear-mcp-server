@@ -316,14 +316,10 @@ class LinearMCPClient {
     );
 
     const issuesWithDetails = await this.rateLimiter.batch(result.nodes, 5, async (issue) => {
-      const statePromise = issue.state;
-      const assigneePromise = issue.assignee;
-      const labelsPromise = issue.labels();
-
       const [state, assignee, labels] = await Promise.all([
-        this.rateLimiter.enqueue(async () => statePromise ? await statePromise : null),
-        this.rateLimiter.enqueue(async () => assigneePromise ? await assigneePromise : null),
-        this.rateLimiter.enqueue(async () => labelsPromise)
+        this.rateLimiter.enqueue(() => issue.state) as Promise<WorkflowState>,
+        this.rateLimiter.enqueue(() => issue.assignee) as Promise<User>,
+        this.rateLimiter.enqueue(() => issue.labels()) as Promise<{ nodes: IssueLabel[] }>
       ]);
 
       return {
@@ -333,8 +329,8 @@ class LinearMCPClient {
         description: issue.description,
         priority: issue.priority,
         estimate: issue.estimate,
-        status: state?.name,
-        assignee: assignee?.name,
+        status: state?.name || null,
+        assignee: assignee?.name || null,
         labels: labels?.nodes?.map((label: IssueLabel) => label.name) || [],
         url: issue.url
       };
