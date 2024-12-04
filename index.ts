@@ -118,9 +118,10 @@ class RateLimiter {
     while (this.queue.length > 0) {
       const now = Date.now();
       const timeSinceLastRequest = now - this.lastRequestTime;
-      if (timeSinceLastRequest < this.minDelayMs) {
+
+      const requestsInLastHour = this.requestTimestamps.filter(t => t > now - 3600000).length;
+      if (requestsInLastHour >= this.requestsPerHour * 0.9 && timeSinceLastRequest < this.minDelayMs) {
         const waitTime = this.minDelayMs - timeSinceLastRequest;
-        console.log(`[Linear API] Rate limiting - waiting ${waitTime}ms before next request`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
 
@@ -131,23 +132,20 @@ class RateLimiter {
       }
     }
 
-    console.log(`[Linear API] Queue processed - ${this.getMetrics().requestsInLastHour} requests in last hour`);
     this.processing = false;
   }
 
   async batch<T>(items: any[], batchSize: number, fn: (item: any) => Promise<T>, operation?: string): Promise<T[]> {
-    console.log(`[Linear API] Starting batch operation${operation ? ` for ${operation}` : ''} with ${items.length} items (batch size: ${batchSize})`);
-    const results: T[] = [];
+    const batches = [];
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
-      console.log(`[Linear API] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(items.length/batchSize)}`);
-      const batchResults = await Promise.all(
+      batches.push(Promise.all(
         batch.map(item => this.enqueue(() => fn(item), operation))
-      );
-      results.push(...batchResults);
+      ));
     }
-    console.log(`[Linear API] Completed batch operation${operation ? ` for ${operation}` : ''}`);
-    return results;
+
+    const results = await Promise.all(batches);
+    return results.flat();
   }
 
   private trackRequest(startTime: number, endTime: number, operation?: string) {
@@ -346,26 +344,43 @@ class LinearMCPClient {
   }
 
   async getUserIssues(args: GetUserIssuesArgs) {
-    const user = args.userId ?
-      await this.client.user(args.userId) :
-      await this.client.viewer;
+    try {
+      const user = args.userId && typeof args.userId === 'string' ?
+        await this.rateLimiter.enqueue(() => this.client.user(args.userId as string)) :
+        await this.rateLimiter.enqueue(() => this.client.viewer);
 
-    const { nodes: issues } = await user.assignedIssues({
-      first: args.limit || 50,
-      includeArchived: args.includeArchived
-    });
+      const result = await this.rateLimiter.enqueue(() => user.assignedIssues({
+        first: args.limit || 50,
+        includeArchived: args.includeArchived
+      }));
 
-    const issuesWithDetails = await Promise.all(
-      issues.map(async (issue) => {
-        const state = await issue.state;
-        return {
-          ...issue,
-          stateName: state ? await state.name : 'Unknown'
-        };
-      })
-    );
+      if (!result?.nodes) {
+        return this.addMetricsToResponse([]);
+      }
 
-    return this.addMetricsToResponse(issuesWithDetails);
+      const issuesWithDetails = await this.rateLimiter.batch(
+        result.nodes,
+        5,
+        async (issue) => {
+          const state = await this.rateLimiter.enqueue(() => issue.state) as WorkflowState;
+          return {
+            id: issue.id,
+            identifier: issue.identifier,
+            title: issue.title,
+            description: issue.description,
+            priority: issue.priority,
+            stateName: state?.name || 'Unknown',
+            url: issue.url
+          };
+        },
+        'getUserIssues'
+      );
+
+      return this.addMetricsToResponse(issuesWithDetails);
+    } catch (error) {
+      console.error(`Error in getUserIssues: ${error}`);
+      throw error;
+    }
   }
 
   async addComment(args: AddCommentArgs) {
@@ -748,307 +763,312 @@ interface MCPMetricsResponse {
 }
 
 async function main() {
-  dotenv.config();
+  try {
+    dotenv.config();
 
-  const apiKey = process.env.LINEAR_API_KEY;
-  if (!apiKey) {
-    console.error("LINEAR_API_KEY environment variable is required");
+    const apiKey = process.env.LINEAR_API_KEY;
+    if (!apiKey) {
+      console.error("LINEAR_API_KEY environment variable is required");
+      process.exit(1);
+    }
+
+    console.error("Starting Linear MCP Server...");
+    const linearClient = new LinearMCPClient(apiKey);
+
+    const server = new Server(
+      {
+        name: "linear-mcp-server",
+        version: "1.0.0",
+      },
+      {
+        capabilities: {
+          prompts: {
+            default: serverPrompt
+          },
+          resources: {
+            templates: true,
+            read: true
+          },
+          tools: {},
+        },
+      }
+    );
+
+    server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+      resources: await linearClient.listIssues()
+    }));
+
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      const uri = new URL(request.params.uri);
+      const path = uri.pathname.replace(/^\//, '');
+
+      if (uri.protocol === 'linear-organization') {
+        const organization = await linearClient.getOrganization();
+        return {
+          contents: [{
+            uri: "linear-organization:",
+            mimeType: "application/json",
+            text: JSON.stringify(organization, null, 2)
+          }]
+        };
+      }
+
+      if (uri.protocol === 'linear-viewer') {
+        const viewer = await linearClient.getViewer();
+        return {
+          contents: [{
+            uri: "linear-viewer:",
+            mimeType: "application/json",
+            text: JSON.stringify(viewer, null, 2)
+          }]
+        };
+      }
+
+      if (uri.protocol === 'linear-issue:') {
+        const issue = await linearClient.getIssue(path);
+        return {
+          contents: [{
+            uri: request.params.uri,
+            mimeType: "application/json",
+            text: JSON.stringify(issue, null, 2)
+          }]
+        };
+      }
+
+      if (uri.protocol === 'linear-team:') {
+        const [teamId] = path.split('/');
+        const issues = await linearClient.getTeamIssues(teamId);
+        return {
+          contents: [{
+            uri: request.params.uri,
+            mimeType: "application/json",
+            text: JSON.stringify(issues, null, 2)
+          }]
+        };
+      }
+
+      if (uri.protocol === 'linear-user:') {
+        const [userId] = path.split('/');
+        const issues = await linearClient.getUserIssues({
+          userId: userId === 'me' ? undefined : userId
+        });
+        return {
+          contents: [{
+            uri: request.params.uri,
+            mimeType: "application/json",
+            text: JSON.stringify(issues, null, 2)
+          }]
+        };
+      }
+
+      throw new Error(`Unsupported resource URI: ${request.params.uri}`);
+    });
+
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [createIssueTool, updateIssueTool, searchIssuesTool, getUserIssuesTool, addCommentTool]
+    }));
+
+    server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
+      return {
+        resourceTemplates: resourceTemplates
+      };
+    });
+
+    server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      return {
+        prompts: [serverPrompt]
+      };
+    });
+
+    server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      if (request.params.name === serverPrompt.name) {
+        return {
+          prompt: serverPrompt
+        };
+      }
+      throw new Error(`Prompt not found: ${request.params.name}`);
+    });
+
+    server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
+      let metrics: RateLimiterMetrics = {
+        totalRequests: 0,
+        requestsInLastHour: 0,
+        averageRequestTime: 0,
+        queueLength: 0,
+        lastRequestTime: Date.now()
+      };
+
+      try {
+        const { name, arguments: args } = request.params;
+        if (!args) throw new Error("Missing arguments");
+
+        metrics = linearClient.rateLimiter.getMetrics();
+
+        const baseResponse: MCPMetricsResponse = {
+          apiMetrics: {
+            requestsInLastHour: metrics.requestsInLastHour,
+            remainingRequests: linearClient.rateLimiter.requestsPerHour - metrics.requestsInLastHour,
+            averageRequestTime: `${Math.round(metrics.averageRequestTime)}ms`,
+            queueLength: metrics.queueLength
+          }
+        };
+
+        switch (name) {
+          case "linear_create_issue": {
+            if (!args.title || !args.teamId) {
+              throw new Error("Missing required fields: title and teamId");
+            }
+
+            const createArgs: CreateIssueArgs = {
+              title: String(args.title),
+              teamId: String(args.teamId),
+              description: args.description ? String(args.description) : undefined,
+              priority: args.priority ? Number(args.priority) : undefined,
+              status: args.status ? String(args.status) : undefined
+            };
+
+            const issue = await linearClient.createIssue(createArgs);
+            return {
+              content: [{
+                type: "text",
+                text: `Created issue ${issue.identifier}: ${issue.title}\nURL: ${issue.url}`,
+                metadata: baseResponse
+              }]
+            };
+          }
+
+          case "linear_update_issue": {
+            if (!args.id) {
+              throw new Error("Missing required field: id");
+            }
+
+            const updateArgs: UpdateIssueArgs = {
+              id: String(args.id),
+              title: args.title ? String(args.title) : undefined,
+              description: args.description ? String(args.description) : undefined,
+            priority: args.priority ? Number(args.priority) : undefined,
+              status: args.status ? String(args.status) : undefined
+            };
+
+            const issue = await linearClient.updateIssue(updateArgs);
+            return {
+              content: [{
+                type: "text",
+                text: `Updated issue ${issue.identifier}\nURL: ${issue.url}`,
+                metadata: baseResponse
+              }]
+            };
+          }
+
+          case "linear_search_issues": {
+            const searchArgs: SearchIssuesArgs = {
+              query: args.query ? String(args.query) : undefined,
+              teamId: args.teamId ? String(args.teamId) : undefined,
+              status: args.status ? String(args.status) : undefined,
+              assigneeId: args.assigneeId ? String(args.assigneeId) : undefined,
+              labels: args.labels ? (args.labels as string[]) : undefined,
+              priority: args.priority ? Number(args.priority) : undefined,
+              estimate: args.estimate ? Number(args.estimate) : undefined,
+              includeArchived: args.includeArchived ? Boolean(args.includeArchived) : undefined,
+              limit: args.limit ? Number(args.limit) : undefined
+            };
+
+            const issues = await linearClient.searchIssues(searchArgs);
+            return {
+              content: [{
+                type: "text",
+                text: `Found ${issues.length} issues:\n${
+                  issues.map((issue: LinearIssueResponse) =>
+                    `- ${issue.identifier}: ${issue.title}\n  Priority: ${issue.priority || 'None'}\n  Status: ${issue.status || 'None'}\n  ${issue.url}`
+                  ).join('\n')
+                }`,
+                metadata: baseResponse
+              }]
+            };
+          }
+
+          case "linear_get_user_issues": {
+            const issues = await linearClient.getUserIssues({
+              userId: args.userId ? String(args.userId) : undefined,
+              includeArchived: args.includeArchived ? Boolean(args.includeArchived) : undefined,
+              limit: args.limit ? Number(args.limit) : undefined
+            });
+
+            return {
+              content: [{
+                type: "text",
+                text: `Found ${issues.length} issues:\n${
+                  issues.map((issue: LinearIssueResponse) =>
+                    `- ${issue.identifier}: ${issue.title}\n  Priority: ${issue.priority || 'None'}\n  Status: ${issue.stateName}\n  ${issue.url}`
+                  ).join('\n')
+                }`,
+                metadata: baseResponse
+              }]
+            };
+          }
+
+          case "linear_add_comment": {
+            if (!args.issueId || !args.body) {
+              throw new Error("Missing required fields: issueId and body");
+            }
+
+            const { comment, issue } = await linearClient.addComment({
+              issueId: String(args.issueId),
+              body: String(args.body),
+              createAsUser: args.createAsUser ? String(args.createAsUser) : undefined,
+              displayIconUrl: args.displayIconUrl ? String(args.displayIconUrl) : undefined
+            });
+
+            return {
+              content: [{
+                type: "text",
+                text: `Added comment to issue ${issue?.identifier}\nURL: ${comment.url}`,
+                metadata: baseResponse
+              }]
+            };
+          }
+
+          default:
+            throw new Error(`Unknown tool: ${name}`);
+        }
+      } catch (error) {
+        console.error("Error executing tool:", error);
+
+        const errorResponse: MCPMetricsResponse = {
+          apiMetrics: {
+            requestsInLastHour: metrics.requestsInLastHour,
+            remainingRequests: linearClient.rateLimiter.requestsPerHour - metrics.requestsInLastHour,
+            averageRequestTime: `${Math.round(metrics.averageRequestTime)}ms`,
+            queueLength: metrics.queueLength
+          }
+        };
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              error: error instanceof Error ? error.message : String(error)
+            }),
+            metadata: {
+              error: true,
+              ...errorResponse
+            }
+          }]
+        };
+      }
+    });
+
+    const transport = new StdioServerTransport();
+    console.error("Connecting server to transport...");
+    await server.connect(transport);
+    console.error("Linear MCP Server running on stdio");
+  } catch (error) {
+    console.error(`Fatal error in main(): ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
-
-  console.error("Starting Linear MCP Server...");
-  const linearClient = new LinearMCPClient(apiKey);
-
-  const server = new Server(
-    {
-      name: "linear-mcp-server",
-      version: "1.0.0",
-    },
-    {
-      capabilities: {
-        prompts: {
-          default: serverPrompt
-        },
-        resources: {
-          templates: true,
-          read: true
-        },
-        tools: {},
-      },
-    }
-  );
-
-  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-    resources: await linearClient.listIssues()
-  }));
-
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-    const uri = new URL(request.params.uri);
-    const path = uri.pathname.replace(/^\//, '');
-
-    if (uri.protocol === 'linear-organization') {
-      const organization = await linearClient.getOrganization();
-      return {
-        contents: [{
-          uri: "linear-organization:",
-          mimeType: "application/json",
-          text: JSON.stringify(organization, null, 2)
-        }]
-      };
-    }
-
-    if (uri.protocol === 'linear-viewer') {
-      const viewer = await linearClient.getViewer();
-      return {
-        contents: [{
-          uri: "linear-viewer:",
-          mimeType: "application/json",
-          text: JSON.stringify(viewer, null, 2)
-        }]
-      };
-    }
-
-    if (uri.protocol === 'linear-issue:') {
-      const issue = await linearClient.getIssue(path);
-      return {
-        contents: [{
-          uri: request.params.uri,
-          mimeType: "application/json",
-          text: JSON.stringify(issue, null, 2)
-        }]
-      };
-    }
-
-    if (uri.protocol === 'linear-team:') {
-      const [teamId] = path.split('/');
-      const issues = await linearClient.getTeamIssues(teamId);
-      return {
-        contents: [{
-          uri: request.params.uri,
-          mimeType: "application/json",
-          text: JSON.stringify(issues, null, 2)
-        }]
-      };
-    }
-
-    if (uri.protocol === 'linear-user:') {
-      const [userId] = path.split('/');
-      const issues = await linearClient.getUserIssues({
-        userId: userId === 'me' ? undefined : userId
-      });
-      return {
-        contents: [{
-          uri: request.params.uri,
-          mimeType: "application/json",
-          text: JSON.stringify(issues, null, 2)
-        }]
-      };
-    }
-
-    throw new Error(`Unsupported resource URI: ${request.params.uri}`);
-  });
-
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [createIssueTool, updateIssueTool, searchIssuesTool, getUserIssuesTool, addCommentTool]
-  }));
-
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
-    return {
-      resourceTemplates: resourceTemplates
-    };
-  });
-
-  server.setRequestHandler(ListPromptsRequestSchema, async () => {
-    return {
-      prompts: [serverPrompt]
-    };
-  });
-
-  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-    if (request.params.name === serverPrompt.name) {
-      return {
-        prompt: serverPrompt
-      };
-    }
-    throw new Error(`Prompt not found: ${request.params.name}`);
-  });
-
-  server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
-    let metrics: RateLimiterMetrics = {
-      totalRequests: 0,
-      requestsInLastHour: 0,
-      averageRequestTime: 0,
-      queueLength: 0,
-      lastRequestTime: Date.now()
-    };
-
-    try {
-      const { name, arguments: args } = request.params;
-      if (!args) throw new Error("Missing arguments");
-
-      metrics = linearClient.rateLimiter.getMetrics();
-
-      const baseResponse: MCPMetricsResponse = {
-        apiMetrics: {
-          requestsInLastHour: metrics.requestsInLastHour,
-          remainingRequests: linearClient.rateLimiter.requestsPerHour - metrics.requestsInLastHour,
-          averageRequestTime: `${Math.round(metrics.averageRequestTime)}ms`,
-          queueLength: metrics.queueLength
-        }
-      };
-
-      switch (name) {
-        case "linear_create_issue": {
-          if (!args.title || !args.teamId) {
-            throw new Error("Missing required fields: title and teamId");
-          }
-
-          const createArgs: CreateIssueArgs = {
-            title: String(args.title),
-            teamId: String(args.teamId),
-            description: args.description ? String(args.description) : undefined,
-            priority: args.priority ? Number(args.priority) : undefined,
-            status: args.status ? String(args.status) : undefined
-          };
-
-          const issue = await linearClient.createIssue(createArgs);
-          return {
-            content: [{
-              type: "text",
-              text: `Created issue ${issue.identifier}: ${issue.title}\nURL: ${issue.url}`,
-              metadata: baseResponse
-            }]
-          };
-        }
-
-        case "linear_update_issue": {
-          if (!args.id) {
-            throw new Error("Missing required field: id");
-          }
-
-          const updateArgs: UpdateIssueArgs = {
-            id: String(args.id),
-            title: args.title ? String(args.title) : undefined,
-            description: args.description ? String(args.description) : undefined,
-          priority: args.priority ? Number(args.priority) : undefined,
-            status: args.status ? String(args.status) : undefined
-          };
-
-          const issue = await linearClient.updateIssue(updateArgs);
-          return {
-            content: [{
-              type: "text",
-              text: `Updated issue ${issue.identifier}\nURL: ${issue.url}`,
-              metadata: baseResponse
-            }]
-          };
-        }
-
-        case "linear_search_issues": {
-          const searchArgs: SearchIssuesArgs = {
-            query: args.query ? String(args.query) : undefined,
-            teamId: args.teamId ? String(args.teamId) : undefined,
-            status: args.status ? String(args.status) : undefined,
-            assigneeId: args.assigneeId ? String(args.assigneeId) : undefined,
-            labels: args.labels ? (args.labels as string[]) : undefined,
-            priority: args.priority ? Number(args.priority) : undefined,
-            estimate: args.estimate ? Number(args.estimate) : undefined,
-            includeArchived: args.includeArchived ? Boolean(args.includeArchived) : undefined,
-            limit: args.limit ? Number(args.limit) : undefined
-          };
-
-          const issues = await linearClient.searchIssues(searchArgs);
-          return {
-            content: [{
-              type: "text",
-              text: `Found ${issues.length} issues:\n${
-                issues.map((issue: LinearIssueResponse) =>
-                  `- ${issue.identifier}: ${issue.title}\n  Priority: ${issue.priority || 'None'}\n  Status: ${issue.status || 'None'}\n  ${issue.url}`
-                ).join('\n')
-              }`,
-              metadata: baseResponse
-            }]
-          };
-        }
-
-        case "linear_get_user_issues": {
-          const issues = await linearClient.getUserIssues({
-            userId: args.userId ? String(args.userId) : undefined,
-            includeArchived: args.includeArchived ? Boolean(args.includeArchived) : undefined,
-            limit: args.limit ? Number(args.limit) : undefined
-          });
-
-          return {
-            content: [{
-              type: "text",
-              text: `Found ${issues.length} issues:\n${
-                issues.map((issue: LinearIssueResponse) =>
-                  `- ${issue.identifier}: ${issue.title}\n  Priority: ${issue.priority || 'None'}\n  Status: ${issue.stateName}\n  ${issue.url}`
-                ).join('\n')
-              }`,
-              metadata: baseResponse
-            }]
-          };
-        }
-
-        case "linear_add_comment": {
-          if (!args.issueId || !args.body) {
-            throw new Error("Missing required fields: issueId and body");
-          }
-
-          const { comment, issue } = await linearClient.addComment({
-            issueId: String(args.issueId),
-            body: String(args.body),
-            createAsUser: args.createAsUser ? String(args.createAsUser) : undefined,
-            displayIconUrl: args.displayIconUrl ? String(args.displayIconUrl) : undefined
-          });
-
-          return {
-            content: [{
-              type: "text",
-              text: `Added comment to issue ${issue?.identifier}\nURL: ${comment.url}`,
-              metadata: baseResponse
-            }]
-          };
-        }
-
-        default:
-          throw new Error(`Unknown tool: ${name}`);
-      }
-    } catch (error) {
-      console.error("Error executing tool:", error);
-
-      const errorResponse: MCPMetricsResponse = {
-        apiMetrics: {
-          requestsInLastHour: metrics.requestsInLastHour,
-          remainingRequests: linearClient.rateLimiter.requestsPerHour - metrics.requestsInLastHour,
-          averageRequestTime: `${Math.round(metrics.averageRequestTime)}ms`,
-          queueLength: metrics.queueLength
-        }
-      };
-
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : String(error)
-          }),
-          metadata: {
-            error: true,
-            ...errorResponse
-          }
-        }]
-      };
-    }
-  });
-
-  const transport = new StdioServerTransport();
-  console.error("Connecting server to transport...");
-  await server.connect(transport);
-  console.error("Linear MCP Server running on stdio");
 }
 
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
+main().catch((error: unknown) => {
+  console.error("Fatal error in main():", error instanceof Error ? error.message : String(error));
   process.exit(1);
 });
