@@ -17,6 +17,7 @@ import {
   Prompt,
 } from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
+import { z } from 'zod';
 
 interface CreateIssueArgs {
   title: string;
@@ -758,6 +759,48 @@ interface MCPMetricsResponse {
   }
 }
 
+// Zod schemas for tool argument validation
+const CreateIssueArgsSchema = z.object({
+  title: z.string().describe("Issue title"),
+  teamId: z.string().describe("Team ID"),
+  description: z.string().optional().describe("Issue description"),
+  priority: z.number().optional().describe("Priority (0-4)"),
+  status: z.string().optional().describe("Issue status")
+});
+
+const UpdateIssueArgsSchema = z.object({
+  id: z.string().describe("Issue ID"),
+  title: z.string().optional().describe("New title"),
+  description: z.string().optional().describe("New description"),
+  priority: z.number().optional().describe("New priority (0-4)"),
+  status: z.string().optional().describe("New status")
+});
+
+const SearchIssuesArgsSchema = z.object({
+  query: z.string().optional().describe("Optional text to search in title and description"),
+  teamId: z.string().optional().describe("Filter by team ID"),
+  status: z.string().optional().describe("Filter by status name (e.g., 'In Progress', 'Done')"),
+  assigneeId: z.string().optional().describe("Filter by assignee's user ID"),
+  labels: z.array(z.string()).optional().describe("Filter by label names"),
+  priority: z.number().optional().describe("Filter by priority (1=urgent, 2=high, 3=normal, 4=low)"),
+  estimate: z.number().optional().describe("Filter by estimate points"),
+  includeArchived: z.boolean().optional().describe("Include archived issues in results (default: false)"),
+  limit: z.number().optional().describe("Max results to return (default: 10)")
+});
+
+const GetUserIssuesArgsSchema = z.object({
+  userId: z.string().optional().describe("Optional user ID. If not provided, returns authenticated user's issues"),
+  includeArchived: z.boolean().optional().describe("Include archived issues in results"),
+  limit: z.number().optional().describe("Maximum number of issues to return (default: 50)")
+});
+
+const AddCommentArgsSchema = z.object({
+  issueId: z.string().describe("ID of the issue to comment on"),
+  body: z.string().describe("Comment text in markdown format"),
+  createAsUser: z.string().optional().describe("Optional custom username to show for the comment"),
+  displayIconUrl: z.string().optional().describe("Optional avatar URL for the comment")
+});
+
 async function main() {
   try {
     dotenv.config();
@@ -911,19 +954,8 @@ async function main() {
 
         switch (name) {
           case "linear_create_issue": {
-            if (!args.title || !args.teamId) {
-              throw new Error("Missing required fields: title and teamId");
-            }
-
-            const createArgs: CreateIssueArgs = {
-              title: String(args.title),
-              teamId: String(args.teamId),
-              description: args.description ? String(args.description) : undefined,
-              priority: args.priority ? Number(args.priority) : undefined,
-              status: args.status ? String(args.status) : undefined
-            };
-
-            const issue = await linearClient.createIssue(createArgs);
+            const validatedArgs = CreateIssueArgsSchema.parse(args);
+            const issue = await linearClient.createIssue(validatedArgs);
             return {
               content: [{
                 type: "text",
@@ -934,19 +966,8 @@ async function main() {
           }
 
           case "linear_update_issue": {
-            if (!args.id) {
-              throw new Error("Missing required field: id");
-            }
-
-            const updateArgs: UpdateIssueArgs = {
-              id: String(args.id),
-              title: args.title ? String(args.title) : undefined,
-              description: args.description ? String(args.description) : undefined,
-            priority: args.priority ? Number(args.priority) : undefined,
-              status: args.status ? String(args.status) : undefined
-            };
-
-            const issue = await linearClient.updateIssue(updateArgs);
+            const validatedArgs = UpdateIssueArgsSchema.parse(args);
+            const issue = await linearClient.updateIssue(validatedArgs);
             return {
               content: [{
                 type: "text",
@@ -957,19 +978,8 @@ async function main() {
           }
 
           case "linear_search_issues": {
-            const searchArgs: SearchIssuesArgs = {
-              query: args.query ? String(args.query) : undefined,
-              teamId: args.teamId ? String(args.teamId) : undefined,
-              status: args.status ? String(args.status) : undefined,
-              assigneeId: args.assigneeId ? String(args.assigneeId) : undefined,
-              labels: args.labels ? (args.labels as string[]) : undefined,
-              priority: args.priority ? Number(args.priority) : undefined,
-              estimate: args.estimate ? Number(args.estimate) : undefined,
-              includeArchived: args.includeArchived ? Boolean(args.includeArchived) : undefined,
-              limit: args.limit ? Number(args.limit) : undefined
-            };
-
-            const issues = await linearClient.searchIssues(searchArgs);
+            const validatedArgs = SearchIssuesArgsSchema.parse(args);
+            const issues = await linearClient.searchIssues(validatedArgs);
             return {
               content: [{
                 type: "text",
@@ -984,11 +994,8 @@ async function main() {
           }
 
           case "linear_get_user_issues": {
-            const issues = await linearClient.getUserIssues({
-              userId: args.userId ? String(args.userId) : undefined,
-              includeArchived: args.includeArchived ? Boolean(args.includeArchived) : undefined,
-              limit: args.limit ? Number(args.limit) : undefined
-            });
+            const validatedArgs = GetUserIssuesArgsSchema.parse(args);
+            const issues = await linearClient.getUserIssues(validatedArgs);
 
             return {
               content: [{
@@ -1004,16 +1011,8 @@ async function main() {
           }
 
           case "linear_add_comment": {
-            if (!args.issueId || !args.body) {
-              throw new Error("Missing required fields: issueId and body");
-            }
-
-            const { comment, issue } = await linearClient.addComment({
-              issueId: String(args.issueId),
-              body: String(args.body),
-              createAsUser: args.createAsUser ? String(args.createAsUser) : undefined,
-              displayIconUrl: args.displayIconUrl ? String(args.displayIconUrl) : undefined
-            });
+            const validatedArgs = AddCommentArgsSchema.parse(args);
+            const { comment, issue } = await linearClient.addComment(validatedArgs);
 
             return {
               content: [{
@@ -1038,6 +1037,26 @@ async function main() {
             queueLength: metrics.queueLength
           }
         };
+
+        // If it's a Zod error, format it nicely
+        if (error instanceof z.ZodError) {
+          const formattedErrors = error.errors.map(err => 
+            `${err.path.join('.')}: ${err.message}`
+          ).join('\n');
+          
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                error: `Validation error:\n${formattedErrors}`
+              }),
+              metadata: {
+                error: true,
+                ...errorResponse
+              }
+            }]
+          };
+        }
 
         return {
           content: [{
