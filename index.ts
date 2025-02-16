@@ -1040,16 +1040,22 @@ async function main() {
 
         // If it's a Zod error, format it nicely
         if (error instanceof z.ZodError) {
-          const formattedErrors = error.errors.map(err => 
-            `${err.path.join('.')}: ${err.message}`
-          ).join('\n');
+          const formattedErrors = error.errors.map(err => ({
+            path: err.path,
+            message: err.message,
+            code: 'VALIDATION_ERROR'
+          }));
           
           return {
             content: [{
               type: "text",
-              text: JSON.stringify({
-                error: `Validation error:\n${formattedErrors}`
-              }),
+              text: {
+                error: {
+                  type: 'VALIDATION_ERROR',
+                  message: 'Invalid request parameters',
+                  details: formattedErrors
+                }
+              },
               metadata: {
                 error: true,
                 ...errorResponse
@@ -1058,12 +1064,41 @@ async function main() {
           };
         }
 
+        // For Linear API errors, try to extract useful information
+        if (error instanceof Error && 'response' in error) {
+          return {
+            content: [{
+              type: "text",
+              text: {
+                error: {
+                  type: 'API_ERROR',
+                  message: error.message,
+                  details: {
+                    // @ts-ignore - response property exists but isn't in type
+                    status: error.response?.status,
+                    // @ts-ignore - response property exists but isn't in type
+                    data: error.response?.data
+                  }
+                }
+              },
+              metadata: {
+                error: true,
+                ...errorResponse
+              }
+            }]
+          };
+        }
+
+        // For all other errors
         return {
           content: [{
             type: "text",
-            text: JSON.stringify({
-              error: error instanceof Error ? error.message : String(error)
-            }),
+            text: {
+              error: {
+                type: 'UNKNOWN_ERROR',
+                message: error instanceof Error ? error.message : String(error)
+              }
+            },
             metadata: {
               error: true,
               ...errorResponse
