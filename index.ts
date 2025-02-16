@@ -764,7 +764,7 @@ const CreateIssueArgsSchema = z.object({
   title: z.string().describe("Issue title"),
   teamId: z.string().describe("Team ID"),
   description: z.string().optional().describe("Issue description"),
-  priority: z.number().optional().describe("Priority (0-4)"),
+  priority: z.number().min(0).max(4).optional().describe("Priority (0-4)"),
   status: z.string().optional().describe("Issue status")
 });
 
