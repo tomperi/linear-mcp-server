@@ -88,3 +88,7 @@ export const ListProjectsArgsSchema = z.object({
     .optional()
     .describe("Maximum number of projects to return (default: 5)"),
 });
+
+export const GetProjectArgsSchema = z.object({
+  projectId: z.string().describe("ID of the project to fetch"),
+});

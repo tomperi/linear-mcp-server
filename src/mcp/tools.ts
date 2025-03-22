@@ -159,3 +159,19 @@ export const listProjectsTool: Tool = {
     },
   },
 };
+
+export const getProjectTool: Tool = {
+  name: "linear_get_project",
+  description:
+    "Retrieves a single project from Linear with detailed information including updates, documents, and associated issues. For the project, fetches recent updates (limited to 5), related documents (limited to 10), and associated issues (limited to 30) with their status and assignee details. Useful for getting comprehensive details about a specific project and its progress.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      projectId: {
+        type: "string",
+        description: "ID of the project to fetch",
+      },
+    },
+    required: ["projectId"],
+  },
+};

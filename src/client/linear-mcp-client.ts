@@ -4,6 +4,7 @@ import {
   LinearClient,
   LinearDocument,
   Project,
+  ProjectMilestone,
   User,
   WorkflowState,
 } from "@linear/sdk";
@@ -15,6 +16,7 @@ import {
   SearchIssuesArgs,
   UpdateIssueArgs,
   ListProjectsArgs,
+  GetProjectArgs,
 } from "./types.js";
 
 export class LinearMCPClient {
@@ -374,6 +376,91 @@ export class LinearMCPClient {
     const metadata = this.addMetricsToResponse(projects);
 
     return { projects, metadata };
+  }
+
+  async getProject(args: GetProjectArgs) {
+    const { projectId } = args;
+
+    const project = await this.rateLimiter.enqueue(
+      () => this.client.project(projectId),
+      "getProject"
+    );
+
+    if (!project) {
+      throw new Error(`Project with ID ${projectId} not found`);
+    }
+
+    const [milestones, updates, documents, issues] = await Promise.all([
+      this.rateLimiter.enqueue(
+        () => project.projectMilestones({ first: 10 }),
+        "getProjectMilestones"
+      ),
+      this.rateLimiter.enqueue(
+        () => project.projectUpdates({ first: 5 }),
+        "getProjectUpdates"
+      ),
+      this.rateLimiter.enqueue(
+        () => project.documents({ first: 10 }),
+        "getProjectDocuments"
+      ),
+      this.rateLimiter.enqueue(
+        () => project.issues({ first: 5 }),
+        "getProjectIssues"
+      ),
+    ]);
+
+    const processedIssues = await this.rateLimiter.batch(
+      issues.nodes || [],
+      5, // Process 5 issues at a time
+      async (issue: Issue) => {
+        const [state, assignee] = await Promise.all([
+          issue.state,
+          issue.assignee,
+        ]);
+
+        return {
+          id: issue.id,
+          identifier: issue.identifier,
+          title: issue.title,
+          description: issue.description,
+          priority: issue.priority,
+          estimate: issue.estimate,
+          status: state ? state.name : null,
+          assignee: assignee ? assignee.name : null,
+          url: issue.url,
+        };
+      },
+      "getProjectIssueDetails"
+    );
+
+    const projectDetails = {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      url: project.url,
+      overview: `${project.url}/overview`,
+      mileestones: (milestones.nodes || []).map(
+        (milestone: ProjectMilestone) => ({
+          id: milestone.id,
+          title: milestone.name,
+          progress: milestone.progress,
+        })
+      ),
+      updates: (updates.nodes || []).map((update: any) => ({
+        id: update.id,
+        title: update.title || update.subject || "No Title",
+        url: update.url,
+        createdAt: update.createdAt,
+      })),
+      documents: (documents.nodes || []).map((doc: any) => ({
+        id: doc.id,
+        title: doc.title,
+        url: doc.url,
+      })),
+      issues: processedIssues,
+    };
+
+    return this.addMetricsToResponse(projectDetails);
   }
 
   private buildSearchFilter(args: SearchIssuesArgs): any {

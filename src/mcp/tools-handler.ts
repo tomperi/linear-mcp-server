@@ -6,6 +6,7 @@ import {
   AddCommentArgsSchema,
   CreateIssueArgsSchema,
   GetLabelsArgsSchema,
+  GetProjectArgsSchema,
   ListProjectsArgsSchema,
   GetUserIssuesArgsSchema,
   SearchIssuesArgsSchema,
@@ -13,6 +14,7 @@ import {
 } from "../client/zod-schemas.js";
 import { z } from "zod";
 import { MCPMetricsResponse } from "./types.js";
+import { Document, ProjectMilestone, ProjectUpdate } from "@linear/sdk";
 
 export const handleToolRequest = async (
   request: CallToolRequest,
@@ -158,6 +160,62 @@ export const handleToolRequest = async (
                 })
                 .join("\n\n")}`,
               metadata: metadata || baseResponse,
+            },
+          ],
+        };
+      }
+
+      case "linear_get_project": {
+        const validatedArgs = GetProjectArgsSchema.parse(args);
+        const project = await linearClient.getProject(validatedArgs);
+
+        // Format the milestones section
+        const milestonesText =
+          project.mileestones?.length > 0
+            ? `\n  Milestones (${project.mileestones.length}):\n${project.mileestones
+                .map(
+                  (milestone: any) =>
+                    `    - [${milestone.id}] ${milestone.title} (${milestone.progress}%)`
+                )
+                .join("\n")}`
+            : "\n  Milestones: None";
+
+        // Format the issues section
+        const issuesText =
+          project.issues?.length > 0
+            ? `\n  Issues (${project.issues.length}):\n${project.issues
+                .map(
+                  (issue: any) =>
+                    `    - ${issue.identifier}: ${issue.title} [${issue.status || "No Status"}] ${issue.assignee ? `(Assigned to: ${issue.assignee})` : ""}`
+                )
+                .join("\n")}`
+            : "\n  Issues: None";
+
+        // Format the updates section
+        const updatesText =
+          project.updates && project.updates.length > 0
+            ? `\n  Recent Updates (${project.updates.length}):\n${project.updates
+                .map(
+                  (update: ProjectUpdate) =>
+                    `    - ${new Date(update.createdAt).toLocaleDateString()} (${update.url})`
+                )
+                .join("\n")}`
+            : "\n  Updates: None";
+
+        // Format the documents section
+        const documentsText =
+          project.documents && project.documents.length > 0
+            ? `\n  Documents (${project.documents.length}):\n${project.documents
+                .map((doc: Document) => `    - ${doc.title} (${doc.url})`)
+                .join("\n")}`
+            : "\n  Documents: None";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Project: ${project.name}\nDescription: ${project.description || "None"}\nURL: ${project.url}\nOverview URL: ${project.overview}${milestonesText}${updatesText}${documentsText}${issuesText}`,
+              metadata: project.metadata || baseResponse,
             },
           ],
         };

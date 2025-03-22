@@ -57,3 +57,7 @@ export interface GetLabelsArgs {
 export interface ListProjectsArgs {
   limit?: number;
 }
+
+export interface GetProjectArgs {
+  projectId: string;
+}

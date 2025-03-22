@@ -52,6 +52,13 @@ export const serverPrompt: Prompt = {
     - useful for getting an overview of ongoing projects
     - optional limit parameter (default: 5)
   
+  - linear_get_project:
+    - retrieves comprehensive details about a single project
+    - includes recent updates (last 5), documents (up to 10), and issues (up to 30)
+    - for each issue, includes status and assignee information
+    - requires project ID (can be obtained from linear_list_projects)
+    - useful for deep analysis of a specific project's progress
+  
   Best practices:
   - When creating issues:
     - Write clear, actionable titles that describe the task well (e.g., "Implement user authentication for mobile app")
