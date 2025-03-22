@@ -124,3 +124,5 @@ export class RateLimiter {
     };
   }
 }
+export { RateLimiterMetrics };
+
