@@ -43,6 +43,8 @@ export const SearchIssuesArgsSchema = z.object({
     .optional()
     .describe("Include archived issues in results (default: false)"),
   limit: z.number().optional().describe("Max results to return (default: 10)"),
+  projectId: z.string().optional().describe("Filter by project ID"),
+  milestoneId: z.string().optional().describe("Filter by project milestone ID"),
 });
 
 export const GetUserIssuesArgsSchema = z.object({

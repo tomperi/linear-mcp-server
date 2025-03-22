@@ -26,6 +26,8 @@ export interface SearchIssuesArgs {
   priority?: number;
   estimate?: number;
   includeArchived?: boolean;
+  projectId?: string;
+  milestoneId?: string;
 }
 
 export interface GetUserIssuesArgs {

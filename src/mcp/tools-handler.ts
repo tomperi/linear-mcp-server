@@ -180,17 +180,6 @@ export const handleToolRequest = async (
                 .join("\n")}`
             : "\n  Milestones: None";
 
-        // Format the issues section
-        const issuesText =
-          project.issues?.length > 0
-            ? `\n  Issues (${project.issues.length}):\n${project.issues
-                .map(
-                  (issue: any) =>
-                    `    - ${issue.identifier}: ${issue.title} [${issue.status || "No Status"}] ${issue.assignee ? `(Assigned to: ${issue.assignee})` : ""}`
-                )
-                .join("\n")}`
-            : "\n  Issues: None";
-
         // Format the updates section
         const updatesText =
           project.updates && project.updates.length > 0
@@ -214,7 +203,7 @@ export const handleToolRequest = async (
           content: [
             {
               type: "text",
-              text: `Project: ${project.name}\nDescription: ${project.description || "None"}\nURL: ${project.url}\nOverview URL: ${project.overview}${milestonesText}${updatesText}${documentsText}${issuesText}`,
+              text: `Project: ${project.name}\nDescription: ${project.description || "None"}\nURL: ${project.url}\nOverview URL: ${project.overview}${milestonesText}${updatesText}${documentsText}`,
               metadata: project.metadata || baseResponse,
             },
           ],

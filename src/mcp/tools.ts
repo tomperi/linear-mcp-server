@@ -43,7 +43,7 @@ export const updateIssueTool: Tool = {
 export const searchIssuesTool: Tool = {
   name: "linear_search_issues",
   description:
-    "Searches Linear issues using flexible criteria. Supports filtering by any combination of: title/description text, team, status, assignee, labels, priority (1=urgent, 2=high, 3=normal, 4=low), and estimate. Returns up to 10 issues by default (configurable via limit).",
+    "Searches Linear issues using flexible criteria. Supports filtering by any combination of: title/description text, team, status, assignee, labels, priority (1=urgent, 2=high, 3=normal, 4=low), estimate, project ID, and milestone ID. Returns up to 10 issues by default (configurable via limit).",
   inputSchema: {
     type: "object",
     properties: {
@@ -72,6 +72,14 @@ export const searchIssuesTool: Tool = {
       estimate: {
         type: "number",
         description: "Filter by estimate points",
+      },
+      projectId: {
+        type: "string",
+        description: "Filter by project ID",
+      },
+      milestoneId: {
+        type: "string",
+        description: "Filter by project milestone ID",
       },
       includeArchived: {
         type: "boolean",
@@ -163,7 +171,7 @@ export const listProjectsTool: Tool = {
 export const getProjectTool: Tool = {
   name: "linear_get_project",
   description:
-    "Retrieves a single project from Linear with detailed information including updates, documents, and associated issues. For the project, fetches recent updates (limited to 5), related documents (limited to 10), and associated issues (limited to 30) with their status and assignee details. Useful for getting comprehensive details about a specific project and its progress.",
+    "Retrieves a single project from Linear with detailed information including milestones, updates, and documents. For the project, fetches milestones (limited to 10), recent updates (limited to 5), and related documents (limited to 10). To get issues associated with a project, use linear_search_issues with the projectId parameter. Useful for getting comprehensive details about a specific project and its progress.",
   inputSchema: {
     type: "object",
     properties: {

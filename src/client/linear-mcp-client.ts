@@ -390,7 +390,7 @@ export class LinearMCPClient {
       throw new Error(`Project with ID ${projectId} not found`);
     }
 
-    const [milestones, updates, documents, issues] = await Promise.all([
+    const [milestones, updates, documents] = await Promise.all([
       this.rateLimiter.enqueue(
         () => project.projectMilestones({ first: 10 }),
         "getProjectMilestones"
@@ -403,35 +403,7 @@ export class LinearMCPClient {
         () => project.documents({ first: 10 }),
         "getProjectDocuments"
       ),
-      this.rateLimiter.enqueue(
-        () => project.issues({ first: 5 }),
-        "getProjectIssues"
-      ),
     ]);
-
-    const processedIssues = await this.rateLimiter.batch(
-      issues.nodes || [],
-      5, // Process 5 issues at a time
-      async (issue: Issue) => {
-        const [state, assignee] = await Promise.all([
-          issue.state,
-          issue.assignee,
-        ]);
-
-        return {
-          id: issue.id,
-          identifier: issue.identifier,
-          title: issue.title,
-          description: issue.description,
-          priority: issue.priority,
-          estimate: issue.estimate,
-          status: state ? state.name : null,
-          assignee: assignee ? assignee.name : null,
-          url: issue.url,
-        };
-      },
-      "getProjectIssueDetails"
-    );
 
     const projectDetails = {
       id: project.id,
@@ -457,7 +429,6 @@ export class LinearMCPClient {
         title: doc.title,
         url: doc.url,
       })),
-      issues: processedIssues,
     };
 
     return this.addMetricsToResponse(projectDetails);
@@ -499,6 +470,14 @@ export class LinearMCPClient {
 
     if (args.estimate) {
       filter.estimate = { eq: args.estimate };
+    }
+
+    if (args.projectId) {
+      filter.project = { id: { eq: args.projectId } };
+    }
+
+    if (args.milestoneId) {
+      filter.projectMilestone = { id: { eq: args.milestoneId } };
     }
 
     return filter;

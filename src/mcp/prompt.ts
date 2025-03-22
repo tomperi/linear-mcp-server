@@ -30,6 +30,7 @@ export const serverPrompt: Prompt = {
     - combine multiple filters for precise results
     - use labels array for multiple tag filtering
     - query searches both title and description
+    - filter by project or milestone using projectId or milestoneId
     - returns max 10 results by default
   
   - linear_get_user_issues:
@@ -54,8 +55,8 @@ export const serverPrompt: Prompt = {
   
   - linear_get_project:
     - retrieves comprehensive details about a single project
-    - includes recent updates (last 5), documents (up to 10), and issues (up to 30)
-    - for each issue, includes status and assignee information
+    - includes milestones (up to 10), recent updates (last 5), and documents (up to 10)
+    - does NOT include issues (use linear_search_issues with projectId to get issues)
     - requires project ID (can be obtained from linear_list_projects)
     - useful for deep analysis of a specific project's progress
   
