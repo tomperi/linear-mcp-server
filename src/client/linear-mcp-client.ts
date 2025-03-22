@@ -1,6 +1,19 @@
-import { Issue, IssueLabel, LinearClient, LinearDocument, User, WorkflowState } from "@linear/sdk";
+import {
+  Issue,
+  IssueLabel,
+  LinearClient,
+  LinearDocument,
+  User,
+  WorkflowState,
+} from "@linear/sdk";
 import { RateLimiter } from "../rate-limiter/rate-limiter.js";
-import { AddCommentArgs, CreateIssueArgs, GetUserIssuesArgs, SearchIssuesArgs, UpdateIssueArgs } from "./types.js";
+import {
+  AddCommentArgs,
+  CreateIssueArgs,
+  GetUserIssuesArgs,
+  SearchIssuesArgs,
+  UpdateIssueArgs,
+} from "./types.js";
 
 export class LinearMCPClient {
   private client: LinearClient;
@@ -333,6 +346,19 @@ export class LinearMCPClient {
         active: user.active,
       })),
     });
+  }
+
+  async getLabels(args?: { limit?: number }) {
+    const limit = args?.limit || 100;
+
+    const labels = await this.client.issueLabels({
+      first: limit,
+    });
+
+    return labels.nodes.map((label) => ({
+      id: label.id,
+      name: label.name,
+    }));
   }
 
   private buildSearchFilter(args: SearchIssuesArgs): any {

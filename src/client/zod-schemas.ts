@@ -69,3 +69,10 @@ export const AddCommentArgsSchema = z.object({
     .optional()
     .describe("Optional avatar URL for the comment"),
 });
+
+export const GetLabelsArgsSchema = z.object({
+  limit: z
+    .number()
+    .optional()
+    .describe("Maximum number of labels to return (default: 100)"),
+});

@@ -11,6 +11,7 @@ export const serverPrompt: Prompt = {
   - Team coordination: Access team-specific issues and manage work distribution within teams.
   - Issue tracking: Add comments and track progress through status updates and assignments.
   - Organization overview: View team structures and user assignments across the organization.
+  - Label management: Retrieve available labels for categorizing and filtering issues.
   
   Tool Usage:
   - linear_create_issue:
@@ -39,12 +40,18 @@ export const serverPrompt: Prompt = {
     - use displayIconUrl for bot/integration avatars
     - createAsUser for custom comment attribution
   
+  - linear_get_labels:
+    - retrieves all available issue labels in the workspace
+    - useful for discovering valid label options when creating/updating issues
+    - optional limit parameter (default: 100)
+  
   Best practices:
   - When creating issues:
     - Write clear, actionable titles that describe the task well (e.g., "Implement user authentication for mobile app")
     - Include concise but appropriately detailed descriptions in markdown format with context and acceptance criteria
     - Set appropriate priority based on the context (1=critical to 4=nice-to-have)
     - Always specify the correct team ID (default to the user's team if possible)
+    - Use appropriate labels to categorize issues (use linear_get_labels to discover available options)
   
   - When searching:
     - Use specific, targeted queries for better results (e.g., "auth mobile app" rather than just "auth")

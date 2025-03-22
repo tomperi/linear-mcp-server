@@ -124,3 +124,18 @@ export const addCommentTool: Tool = {
     required: ["issueId", "body"],
   },
 };
+
+export const getLabelsTool: Tool = {
+  name: "linear_get_labels",
+  description:
+    "Retrieves all available issue labels in the Linear workspace. Labels can be used to categorize and filter issues. Returns a list of labels with their IDs and names. Useful for discovering valid label options when creating or updating issues.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      limit: {
+        type: "number",
+        description: "Maximum number of labels to return (default: 100)",
+      },
+    },
+  },
+};

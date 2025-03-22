@@ -47,3 +47,7 @@ export interface LinearIssueResponse {
   stateName?: string;
   url: string;
 }
+
+export interface GetLabelsArgs {
+  limit?: number;
+}

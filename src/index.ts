@@ -21,6 +21,7 @@ import { LinearMCPClient } from "./client/linear-mcp-client.js";
 import {
   addCommentTool,
   createIssueTool,
+  getLabelsTool,
   getUserIssuesTool,
   searchIssuesTool,
   updateIssueTool,
@@ -28,6 +29,7 @@ import {
 import {
   AddCommentArgsSchema,
   CreateIssueArgsSchema,
+  GetLabelsArgsSchema,
   GetUserIssuesArgsSchema,
   SearchIssuesArgsSchema,
   UpdateIssueArgsSchema,
@@ -221,6 +223,7 @@ async function main() {
         searchIssuesTool,
         getUserIssuesTool,
         addCommentTool,
+        getLabelsTool,
       ],
     }));
 
@@ -245,9 +248,8 @@ async function main() {
       throw new Error(`Prompt not found: ${request.params.name}`);
     });
 
-    server.setRequestHandler(
-      CallToolRequestSchema,
-      (request) => handleToolRequest(request, linearClient)
+    server.setRequestHandler(CallToolRequestSchema, (request) =>
+      handleToolRequest(request, linearClient)
     );
 
     const transport = new StdioServerTransport();

@@ -5,6 +5,7 @@ import { LinearMCPClient } from "../client/linear-mcp-client.js";
 import {
   AddCommentArgsSchema,
   CreateIssueArgsSchema,
+  GetLabelsArgsSchema,
   GetUserIssuesArgsSchema,
   SearchIssuesArgsSchema,
   UpdateIssueArgsSchema,
@@ -117,6 +118,23 @@ export const handleToolRequest = async (
             {
               type: "text",
               text: `Added comment to issue ${issue?.identifier}\nURL: ${comment.url}`,
+              metadata: baseResponse,
+            },
+          ],
+        };
+      }
+
+      case "linear_get_labels": {
+        const validatedArgs = GetLabelsArgsSchema.parse(args);
+        const labels = await linearClient.getLabels(validatedArgs);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Found ${labels.length} labels:\n${labels
+                .map((label) => `- ${label.name} (ID: ${label.id})`)
+                .join("\n")}`,
               metadata: baseResponse,
             },
           ],
