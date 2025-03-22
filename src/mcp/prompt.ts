@@ -47,6 +47,11 @@ export const serverPrompt: Prompt = {
     - useful for discovering valid label options when creating/updating issues
     - optional limit parameter (default: 100)
   
+  - linear_get_projects:
+    - retrieves detailed information about projects in the workspace
+    - useful for getting an overview of ongoing projects
+    - optional limit parameter (default: 5)
+  
   Best practices:
   - When creating issues:
     - Write clear, actionable titles that describe the task well (e.g., "Implement user authentication for mobile app")

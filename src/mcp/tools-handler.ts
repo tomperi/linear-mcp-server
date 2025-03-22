@@ -6,6 +6,7 @@ import {
   AddCommentArgsSchema,
   CreateIssueArgsSchema,
   GetLabelsArgsSchema,
+  ListProjectsArgsSchema,
   GetUserIssuesArgsSchema,
   SearchIssuesArgsSchema,
   UpdateIssueArgsSchema,
@@ -72,7 +73,8 @@ export const handleToolRequest = async (
 
       case "linear_search_issues": {
         const validatedArgs = SearchIssuesArgsSchema.parse(args);
-        const { issues, metadata } = await linearClient.searchIssues(validatedArgs);
+        const { issues, metadata } =
+          await linearClient.searchIssues(validatedArgs);
         return {
           content: [
             {
@@ -136,6 +138,26 @@ export const handleToolRequest = async (
                 .map((label) => `- ${label.name} (ID: ${label.id})`)
                 .join("\n")}`,
               metadata: baseResponse,
+            },
+          ],
+        };
+      }
+
+      case "linear_list_projects": {
+        const validatedArgs = ListProjectsArgsSchema.parse(args);
+        const { projects, metadata } =
+          await linearClient.listProjects(validatedArgs);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Found ${projects.length} projects:\n${projects
+                .map((project: any) => {
+                  return `- ${project.name}\n  ID: ${project.id}\n  Description: ${project.description || "None"}\n  URL: ${project.url}`;
+                })
+                .join("\n\n")}`,
+              metadata: metadata || baseResponse,
             },
           ],
         };

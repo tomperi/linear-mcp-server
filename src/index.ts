@@ -20,6 +20,7 @@ import {
   addCommentTool,
   createIssueTool,
   getLabelsTool,
+  listProjectsTool,
   getUserIssuesTool,
   searchIssuesTool,
   updateIssueTool,
@@ -214,6 +215,7 @@ async function main() {
         getUserIssuesTool,
         addCommentTool,
         getLabelsTool,
+        listProjectsTool,
       ],
     }));
 

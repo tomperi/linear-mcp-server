@@ -81,3 +81,10 @@ export const GetLabelsArgsSchema = z.object({
     .optional()
     .describe("Maximum number of labels to return (default: 100)"),
 });
+
+export const ListProjectsArgsSchema = z.object({
+  limit: z
+    .number()
+    .optional()
+    .describe("Maximum number of projects to return (default: 5)"),
+});

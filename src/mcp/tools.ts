@@ -145,3 +145,17 @@ export const getLabelsTool: Tool = {
     },
   },
 };
+
+export const listProjectsTool: Tool = {
+  name: "linear_list_projects",
+  description: "Retrieves projects from Linear with basic information.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      limit: {
+        type: "number",
+        description: "Maximum number of projects to return (default: 5)",
+      },
+    },
+  },
+};

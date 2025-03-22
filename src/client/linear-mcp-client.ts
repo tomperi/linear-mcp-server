@@ -3,6 +3,7 @@ import {
   IssueLabel,
   LinearClient,
   LinearDocument,
+  Project,
   User,
   WorkflowState,
 } from "@linear/sdk";
@@ -13,6 +14,7 @@ import {
   GetUserIssuesArgs,
   SearchIssuesArgs,
   UpdateIssueArgs,
+  ListProjectsArgs,
 } from "./types.js";
 
 export class LinearMCPClient {
@@ -77,7 +79,7 @@ export class LinearMCPClient {
     const issuesWithDetails = await this.rateLimiter.batch(
       result.nodes,
       5,
-      async (issue) => {
+      async (issue: Issue) => {
         const details = await this.getIssueDetails(issue);
         return {
           uri: `linear-issue:///${issue.id}`,
@@ -359,6 +361,19 @@ export class LinearMCPClient {
       id: label.id,
       name: label.name,
     }));
+  }
+
+  async listProjects(args?: ListProjectsArgs) {
+    const limit = args?.limit || 5;
+
+    const { nodes: projects } = await this.rateLimiter.enqueue(
+      () => this.client.projects({ first: limit }),
+      "listProjects"
+    );
+
+    const metadata = this.addMetricsToResponse(projects);
+
+    return { projects, metadata };
   }
 
   private buildSearchFilter(args: SearchIssuesArgs): any {

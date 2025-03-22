@@ -53,3 +53,7 @@ export interface LinearIssueResponse {
 export interface GetLabelsArgs {
   limit?: number;
 }
+
+export interface ListProjectsArgs {
+  limit?: number;
+}
