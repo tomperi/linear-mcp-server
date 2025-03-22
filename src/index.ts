@@ -14,8 +14,6 @@ import {
   ResourceTemplate,
 } from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
-import { z } from "zod";
-import { RateLimiterMetrics } from "./rate-limiter/types.js";
 import { serverPrompt } from "./mcp/prompt.js";
 import { LinearMCPClient } from "./client/linear-mcp-client.js";
 import {
@@ -26,14 +24,6 @@ import {
   searchIssuesTool,
   updateIssueTool,
 } from "./mcp/tools.js";
-import {
-  AddCommentArgsSchema,
-  CreateIssueArgsSchema,
-  GetLabelsArgsSchema,
-  GetUserIssuesArgsSchema,
-  SearchIssuesArgsSchema,
-  UpdateIssueArgsSchema,
-} from "./client/zod-schemas.js";
 import { handleToolRequest } from "./mcp/tools-handler.js";
 
 const resourceTemplates: ResourceTemplate[] = [
