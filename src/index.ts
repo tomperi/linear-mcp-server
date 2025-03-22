@@ -153,11 +153,9 @@ class LinearMCPClient {
           metadata: {
             identifier: issue.identifier,
             priority: issue.priority,
-            status: details.state ? await details.state.name : undefined,
-            assignee: details.assignee
-              ? await details.assignee.name
-              : undefined,
-            team: details.team ? await details.team.name : undefined,
+            status: details.state ? details.state.name : undefined,
+            assignee: details.assignee ? details.assignee.name : undefined,
+            team: details.team ? details.team.name : undefined,
           },
         };
       },
