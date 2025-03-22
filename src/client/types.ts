@@ -4,6 +4,8 @@ export interface CreateIssueArgs {
   description?: string;
   priority?: number;
   status?: string;
+  estimate?: number;
+  labelIds?: string[];
 }
 
 export interface UpdateIssueArgs {

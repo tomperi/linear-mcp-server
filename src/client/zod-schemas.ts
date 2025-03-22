@@ -6,6 +6,11 @@ export const CreateIssueArgsSchema = z.object({
   description: z.string().optional().describe("Issue description"),
   priority: z.number().min(0).max(4).optional().describe("Priority (0-4)"),
   status: z.string().optional().describe("Issue status"),
+  estimate: z.number().optional().describe("Issue estimate points"),
+  labelIds: z
+    .array(z.string())
+    .optional()
+    .describe("Array of label IDs to attach to the issue"),
 });
 
 export const UpdateIssueArgsSchema = z.object({

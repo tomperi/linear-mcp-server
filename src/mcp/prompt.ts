@@ -18,6 +18,8 @@ export const serverPrompt: Prompt = {
     - use teamId from linear-organization: resource
     - priority levels: 1=urgent, 2=high, 3=normal, 4=low
     - status must match exact Linear workflow state names (e.g., "In Progress", "Done")
+    - estimate allows setting story points or complexity values
+    - labelIds takes an array of label IDs (use linear_get_labels to find valid IDs)
   
   - linear_update_issue:
     - get issue IDs from search_issues or linear-issue:/// resources
@@ -52,6 +54,7 @@ export const serverPrompt: Prompt = {
     - Set appropriate priority based on the context (1=critical to 4=nice-to-have)
     - Always specify the correct team ID (default to the user's team if possible)
     - Use appropriate labels to categorize issues (use linear_get_labels to discover available options)
+    - Set estimate points when applicable to indicate complexity or effort required
   
   - When searching:
     - Use specific, targeted queries for better results (e.g., "auth mobile app" rather than just "auth")

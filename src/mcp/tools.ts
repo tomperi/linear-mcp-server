@@ -3,7 +3,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 export const createIssueTool: Tool = {
   name: "linear_create_issue",
   description:
-    "Creates a new Linear issue with specified details. Use this to create tickets for tasks, bugs, or feature requests. Returns the created issue's identifier and URL. Required fields are title and teamId, with optional description, priority (0-4, where 0 is no priority and 1 is urgent), and status.",
+    "Creates a new Linear issue with specified details. Use this to create tickets for tasks, bugs, or feature requests. Returns the created issue's identifier and URL. Required fields are title and teamId, with optional description, priority (0-4, where 0 is no priority and 1 is urgent), status, estimate (0-5, where 0 is no estimate, and 5 is the maximum estimate), and labels.",
   inputSchema: {
     type: "object",
     properties: {
@@ -12,6 +12,12 @@ export const createIssueTool: Tool = {
       description: { type: "string", description: "Issue description" },
       priority: { type: "number", description: "Priority (0-4)" },
       status: { type: "string", description: "Issue status" },
+      estimate: { type: "number", description: "Issue estimate points" },
+      labelIds: {
+        type: "array",
+        items: { type: "string" },
+        description: "Array of label IDs to attach to the issue",
+      },
     },
     required: ["title", "teamId"],
   },

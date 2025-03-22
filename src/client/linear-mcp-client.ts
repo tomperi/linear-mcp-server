@@ -130,6 +130,8 @@ export class LinearMCPClient {
       description: args.description,
       priority: args.priority,
       stateId: args.status,
+      estimate: args.estimate,
+      labelIds: args.labelIds,
     });
 
     const issue = await issuePayload.issue;
