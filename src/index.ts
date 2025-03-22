@@ -96,15 +96,9 @@ class LinearMCPClient {
     ];
 
     const [state, assignee, team] = await Promise.all([
-      this.rateLimiter.enqueue(async () =>
-        statePromise ? await statePromise : null
-      ),
-      this.rateLimiter.enqueue(async () =>
-        assigneePromise ? await assigneePromise : null
-      ),
-      this.rateLimiter.enqueue(async () =>
-        teamPromise ? await teamPromise : null
-      ),
+      statePromise,
+      assigneePromise,
+      teamPromise,
     ]);
 
     return {
@@ -136,7 +130,7 @@ class LinearMCPClient {
     const result = await this.rateLimiter.enqueue(
       () =>
         this.client.issues({
-          first: 50,
+          first: 10,
           orderBy: LinearDocument.PaginationOrderBy.UpdatedAt,
         }),
       "listIssues"
@@ -164,12 +158,15 @@ class LinearMCPClient {
       "getIssueDetails"
     );
 
-    return this.addMetricsToResponse(issuesWithDetails);
+    const { metadata } = this.addMetricsToResponse(issuesWithDetails);
+
+    return { issues: issuesWithDetails, metadata };
   }
 
   async getIssue(issueId: string) {
-    const result = await this.rateLimiter.enqueue(() =>
-      this.client.issue(issueId)
+    const result = await this.rateLimiter.enqueue(
+      () => this.client.issue(issueId),
+      `getIssue (${issueId})`
     );
     if (!result) throw new Error(`Issue ${issueId} not found`);
 
@@ -756,9 +753,13 @@ async function main() {
       }
     );
 
-    server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-      resources: await linearClient.listIssues(),
-    }));
+    server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      const { issues, metadata } = await linearClient.listIssues();
+      return {
+        resources: issues,
+        metadata,
+      };
+    });
 
     server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const uri = new URL(request.params.uri);
