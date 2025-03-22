@@ -26,7 +26,7 @@ import dotenv from "dotenv";
 import { z } from "zod";
 import { RateLimiter } from "./client/rate-limiter.js";
 import { RateLimiterMetrics } from "./client/types.js";
-import { serverPrompt } from "./client/prompt.js";
+import { serverPrompt } from "./mcp/prompt.js";
 interface CreateIssueArgs {
   title: string;
   teamId: string;
