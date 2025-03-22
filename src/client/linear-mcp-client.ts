@@ -167,11 +167,9 @@ export class LinearMCPClient {
       5,
       async (issue) => {
         const [state, assignee, labels] = await Promise.all([
-          this.rateLimiter.enqueue(() => issue.state) as Promise<WorkflowState>,
-          this.rateLimiter.enqueue(() => issue.assignee) as Promise<User>,
-          this.rateLimiter.enqueue(() => issue.labels()) as Promise<{
-            nodes: IssueLabel[];
-          }>,
+          issue.state as Promise<WorkflowState>,
+          issue.assignee as Promise<User>,
+          issue.labels() as Promise<{ nodes: IssueLabel[] }>,
         ]);
 
         return {
@@ -188,8 +186,8 @@ export class LinearMCPClient {
         };
       }
     );
-
-    return this.addMetricsToResponse(issuesWithDetails);
+    const { metadata } = this.addMetricsToResponse(issuesWithDetails);
+    return { issues: issuesWithDetails, metadata };
   }
 
   async getUserIssues(args: GetUserIssuesArgs) {

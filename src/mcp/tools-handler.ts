@@ -72,7 +72,7 @@ export const handleToolRequest = async (
 
       case "linear_search_issues": {
         const validatedArgs = SearchIssuesArgsSchema.parse(args);
-        const issues = await linearClient.searchIssues(validatedArgs);
+        const { issues, metadata } = await linearClient.searchIssues(validatedArgs);
         return {
           content: [
             {
@@ -83,7 +83,7 @@ export const handleToolRequest = async (
                     `- ${issue.identifier}: ${issue.title}\n  Priority: ${issue.priority || "None"}\n  Status: ${issue.status || "None"}\n  ${issue.url}`
                 )
                 .join("\n")}`,
-              metadata: baseResponse,
+              metadata,
             },
           ],
         };
