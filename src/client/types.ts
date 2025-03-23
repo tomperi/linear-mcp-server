@@ -6,6 +6,8 @@ export interface CreateIssueArgs {
   status?: string;
   estimate?: number;
   labelIds?: string[];
+  projectId?: string;
+  milestoneId?: string;
 }
 
 export interface UpdateIssueArgs {

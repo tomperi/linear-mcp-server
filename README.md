@@ -6,7 +6,7 @@ A [Model Context Protocol](https://github.com/modelcontextprotocol) server for t
 
 This server provides integration with Linear's issue tracking system through MCP, allowing LLMs to interact with Linear issues.
 
-> **Note:** This package is published as a scoped package `@tomperi/linear-mcp-server`. It's currently in beta (v0.1.2).
+> **Note:** This package is published as a scoped package `@tomperi/linear-mcp-server`. It's currently in beta (v0.1.3).
 
 ## Installation
 
@@ -62,6 +62,8 @@ Here's a quick overview of the available tools:
 - **`linear_list_projects`**: List available projects
 - **`linear_get_project`**: Get detailed project information
 - **`linear_create_milestone`**: Create new project milestones
+- **`linear_create_document`**: Create new project documents
+- Create issues within projects by using `linear_create_issue` with a projectId and optional milestoneId
 
 #### Organization
 
@@ -88,6 +90,8 @@ Some example prompts you can use with Claude Desktop to interact with Linear:
 4. "Give me a summary of recent updates on the issues for mobile app development" → use `search_issues` to identify the relevant issue(s), then `linear-issue:///{issueId}` fetch the issue details and show recent activity and comments
 
 5. "What's the current workload for the mobile team?" → combine `linear-team:///{teamId}/issues` and `search_issues` to analyze issue distribution and priorities across the mobile team
+
+6. "Create a new task in the API Redesign project for the Q2 milestone" → use `linear_list_projects` to find the project, `linear_get_project` to find milestone details, and `linear_create_issue` with projectId and milestoneId to create the issue
 
 ## Development
 

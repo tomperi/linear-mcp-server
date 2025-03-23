@@ -41,6 +41,8 @@ Creates a new Linear issue with specified details. Use this to create tickets fo
 - `status` (string): Issue status (must match your Linear workflow state names)
 - `estimate` (number, 0-5): Story points or complexity value
 - `labelIds` (string[]): Array of label IDs to attach to the issue
+- `projectId` (string): Project ID to associate the issue with
+- `milestoneId` (string): Project milestone ID to link the issue to
 
 **Example:**
 
@@ -55,6 +57,20 @@ Creates a new Linear issue with specified details. Use this to create tickets fo
 }
 ```
 
+**Example with Project and Milestone:**
+
+```json
+{
+  "title": "Add payment integration to checkout flow",
+  "teamId": "TEAM-123",
+  "description": "Implement Stripe payment processing in the checkout flow",
+  "priority": 1,
+  "projectId": "project-456",
+  "milestoneId": "milestone-789",
+  "estimate": 4
+}
+```
+
 **Best Practices:**
 
 - Write clear, actionable titles
@@ -62,6 +78,8 @@ Creates a new Linear issue with specified details. Use this to create tickets fo
 - Set appropriate priority based on urgency and impact
 - Use proper team IDs (get them from the `linear-organization:` resource)
 - Add relevant labels for better categorization
+- When associating with projects, use `linear_list_projects` to find available projects
+- For milestone linking, use `linear_get_project` to find available milestones
 
 ### linear_update_issue
 

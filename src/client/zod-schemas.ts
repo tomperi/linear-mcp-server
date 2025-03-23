@@ -11,6 +11,14 @@ export const CreateIssueArgsSchema = z.object({
     .array(z.string())
     .optional()
     .describe("Array of label IDs to attach to the issue"),
+  projectId: z
+    .string()
+    .optional()
+    .describe("Project ID to associate the issue with"),
+  milestoneId: z
+    .string()
+    .optional()
+    .describe("Project milestone ID to link the issue to"),
 });
 
 export const UpdateIssueArgsSchema = z.object({

@@ -110,7 +110,7 @@ async function main() {
     const server = new Server(
       {
         name: "linear-mcp-server",
-        version: "0.1.2",
+        version: "0.1.3",
       },
       {
         capabilities: {
