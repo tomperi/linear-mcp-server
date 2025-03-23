@@ -1,26 +1,28 @@
 # Linear MCP Server
 
-[![npm version](https://img.shields.io/npm/v/linear-mcp-server.svg)](https://www.npmjs.com/package/linear-mcp-server) [![smithery badge](https://smithery.ai/badge/linear-mcp-server)](https://smithery.ai/server/linear-mcp-server)
+[![npm version](https://img.shields.io/npm/v/@tomperi/linear-mcp-server.svg)](https://www.npmjs.com/package/@tomperi/linear-mcp-server)
 
 A [Model Context Protocol](https://github.com/modelcontextprotocol) server for the [Linear API](https://developers.linear.app/docs/graphql/working-with-the-graphql-api).
 
 This server provides integration with Linear's issue tracking system through MCP, allowing LLMs to interact with Linear issues.
 
+> **Note:** This package is published as a scoped package `@tomperi/linear-mcp-server`. It's currently in beta (v0.1.0).
+
 ## Installation
 
-### Automatic Installation
-
-To install the Linear MCP server for Claude Desktop automatically via [Smithery](https://smithery.ai/protocol/linear-mcp-server):
+1. Install the package:
 
 ```bash
-npx @smithery/cli install linear-mcp-server --client claude
+npm install @tomperi/linear-mcp-server
+# or
+yarn add @tomperi/linear-mcp-server
+# or
+pnpm add @tomperi/linear-mcp-server
 ```
 
-### Manual Installation
+2. Create or get a Linear API key for your team: [https://linear.app/YOUR-TEAM/settings/api](https://linear.app/YOUR-TEAM/settings/api)
 
-1. Create or get a Linear API key for your team: [https://linear.app/YOUR-TEAM/settings/api](https://linear.app/YOUR-TEAM/settings/api)
-
-2. Add server config to Claude Desktop:
+3. Add server config to Claude Desktop:
    - MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ```json
@@ -28,7 +30,7 @@ npx @smithery/cli install linear-mcp-server --client claude
   "mcpServers": {
     "linear": {
       "command": "npx",
-      "args": ["-y", "linear-mcp-server"],
+      "args": ["-y", "@tomperi/linear-mcp-server"],
       "env": {
         "LINEAR_API_KEY": "your_linear_api_key_here"
       }
@@ -89,29 +91,62 @@ Some example prompts you can use with Claude Desktop to interact with Linear:
 
 ## Development
 
-1. Install dependencies:
+1. Clone the repository:
+
+```bash
+git clone https://github.com/tomperi/linear-mcp-server.git
+cd linear-mcp-server
+```
+
+2. Install dependencies:
 
 ```bash
 npm install
+# or
+yarn
+# or
+pnpm install
 ```
 
-1. Configure Linear API key in `.env`:
+3. Configure Linear API key in `.env`:
 
 ```bash
 LINEAR_API_KEY=your_api_key_here
 ```
 
-1. Build the server:
+4. Build the server:
 
 ```bash
 npm run build
+# or
+yarn build
+# or
+pnpm run build
 ```
 
 For development with auto-rebuild:
 
 ```bash
 npm run watch
+# or
+yarn watch
+# or
+pnpm run watch
 ```
+
+## Publishing
+
+To publish a new version to npm:
+
+1. Update the version in `package.json`
+2. Build the package:
+   ```bash
+   pnpm run build
+   ```
+3. Publish the package:
+   ```bash
+   pnpm run release
+   ```
 
 ## License
 

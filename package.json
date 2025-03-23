@@ -1,5 +1,5 @@
 {
-  "name": "linear-mcp-server",
+  "name": "@tomperi/linear-mcp-server",
   "version": "0.1.0",
   "description": "A Model Context Protocol server for the Linear API.",
   "type": "module",
@@ -14,7 +14,8 @@
     "prepare": "pnpm run build",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/src/index.js",
-    "lint": "eslint --ext .ts src/"
+    "lint": "eslint --ext .ts src/",
+    "release": "npm publish --access=public"
   },
   "dependencies": {
     "@linear/sdk": "^38.0.0",
@@ -35,7 +36,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/modelcontextprotocol/linear-server.git"
+    "url": "https://github.com/tomperi/linear-mcp-server.git"
   },
   "keywords": [
     "linear",
