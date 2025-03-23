@@ -5,6 +5,7 @@ import { LinearMCPClient } from "../client/linear-mcp-client.js";
 import {
   AddCommentArgsSchema,
   CreateIssueArgsSchema,
+  CreateMilestoneArgsSchema,
   GetLabelsArgsSchema,
   GetProjectArgsSchema,
   ListProjectsArgsSchema,
@@ -205,6 +206,25 @@ export const handleToolRequest = async (
               type: "text",
               text: `Project: ${project.name}\nDescription: ${project.description || "None"}\nURL: ${project.url}\nOverview URL: ${project.overview}${milestonesText}${updatesText}${documentsText}`,
               metadata: project.metadata || baseResponse,
+            },
+          ],
+        };
+      }
+
+      case "linear_create_milestone": {
+        const validatedArgs = CreateMilestoneArgsSchema.parse(args);
+        const milestone = await linearClient.createMilestone(validatedArgs);
+
+        const targetDateText = milestone.targetDate
+          ? `\nTarget Date: ${new Date(milestone.targetDate).toLocaleDateString()}`
+          : "";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Created milestone: ${milestone.name}\nID: ${milestone.id}${targetDateText}\nDescription: ${milestone.description || "None"}`,
+              metadata: milestone.metadata || baseResponse,
             },
           ],
         };

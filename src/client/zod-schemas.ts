@@ -94,3 +94,13 @@ export const ListProjectsArgsSchema = z.object({
 export const GetProjectArgsSchema = z.object({
   projectId: z.string().describe("ID of the project to fetch"),
 });
+
+export const CreateMilestoneArgsSchema = z.object({
+  projectId: z.string().describe("ID of the project to create milestone for"),
+  name: z.string().describe("Name of the milestone"),
+  description: z.string().optional().describe("Description of the milestone"),
+  targetDate: z
+    .string()
+    .optional()
+    .describe("Target date for milestone completion (ISO format date string)"),
+});

@@ -183,3 +183,32 @@ export const getProjectTool: Tool = {
     required: ["projectId"],
   },
 };
+
+export const createMilestoneTool: Tool = {
+  name: "linear_create_milestone",
+  description:
+    "Creates a new milestone for a specific project in Linear. Milestones help track progress toward major goals or releases. Required fields are projectId and name. Optional fields include description and targetDate.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      projectId: {
+        type: "string",
+        description: "ID of the project to create the milestone for",
+      },
+      name: {
+        type: "string",
+        description: "Name of the milestone",
+      },
+      description: {
+        type: "string",
+        description: "Optional description of the milestone",
+      },
+      targetDate: {
+        type: "string",
+        description:
+          "Optional target date for milestone completion (ISO format date string, e.g., '2023-12-31')",
+      },
+    },
+    required: ["projectId", "name"],
+  },
+};

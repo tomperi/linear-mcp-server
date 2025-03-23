@@ -19,6 +19,7 @@ import { LinearMCPClient } from "./client/linear-mcp-client.js";
 import {
   addCommentTool,
   createIssueTool,
+  createMilestoneTool,
   getLabelsTool,
   getProjectTool,
   listProjectsTool,
@@ -218,6 +219,7 @@ async function main() {
         getLabelsTool,
         listProjectsTool,
         getProjectTool,
+        createMilestoneTool,
       ],
     }));
 

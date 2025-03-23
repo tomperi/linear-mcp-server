@@ -12,6 +12,7 @@ import { RateLimiter } from "../rate-limiter/rate-limiter.js";
 import {
   AddCommentArgs,
   CreateIssueArgs,
+  CreateMilestoneArgs,
   GetUserIssuesArgs,
   SearchIssuesArgs,
   UpdateIssueArgs,
@@ -432,6 +433,35 @@ export class LinearMCPClient {
     };
 
     return this.addMetricsToResponse(projectDetails);
+  }
+
+  async createMilestone(args: CreateMilestoneArgs) {
+    const { projectId, name, description, targetDate } = args;
+
+    const milestonePayload = await this.rateLimiter.enqueue(
+      () =>
+        this.client.createProjectMilestone({
+          projectId,
+          name,
+          description,
+          targetDate: targetDate
+            ? new Date(targetDate).toISOString()
+            : undefined,
+        }),
+      "createMilestone"
+    );
+
+    const milestone = await milestonePayload.projectMilestone;
+    if (!milestone) {
+      throw new Error("Failed to create milestone");
+    }
+
+    return this.addMetricsToResponse({
+      id: milestone.id,
+      name: milestone.name,
+      description: milestone.description,
+      targetDate: milestone.targetDate,
+    });
   }
 
   private buildSearchFilter(args: SearchIssuesArgs): any {

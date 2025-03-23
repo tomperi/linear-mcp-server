@@ -63,3 +63,10 @@ export interface ListProjectsArgs {
 export interface GetProjectArgs {
   projectId: string;
 }
+
+export interface CreateMilestoneArgs {
+  projectId: string;
+  name: string;
+  description?: string;
+  targetDate?: string;
+}
