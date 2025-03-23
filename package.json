@@ -1,6 +1,6 @@
 {
   "name": "@tomperi/linear-mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Model Context Protocol server for the Linear API.",
   "type": "module",
   "bin": {
@@ -36,7 +36,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tomperi/linear-mcp-server.git"
+    "url": "git+https://github.com/tomperi/linear-mcp-server.git"
+  },
+  "homepage": "https://github.com/tomperi/linear-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/tomperi/linear-mcp-server/issues"
   },
   "keywords": [
     "linear",
