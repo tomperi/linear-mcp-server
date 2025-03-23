@@ -28,10 +28,7 @@ npx @smithery/cli install linear-mcp-server --client claude
   "mcpServers": {
     "linear": {
       "command": "npx",
-      "args": [
-        "-y",
-        "linear-mcp-server"
-      ],
+      "args": ["-y", "linear-mcp-server"],
       "env": {
         "LINEAR_API_KEY": "your_linear_api_key_here"
       }
@@ -44,47 +41,29 @@ npx @smithery/cli install linear-mcp-server --client claude
 
 ### Tools
 
-1. **`linear_create_issue`**: Create a new Linear issues
-   - Required inputs:
-     - `title` (string): Issue title
-     - `teamId` (string): Team ID to create issue in
-   - Optional inputs:
-     - `description` (string): Issue description (markdown supported)
-     - `priority` (number, 0-4): Priority level (1=urgent, 4=low)
-     - `status` (string): Initial status name
+The Linear MCP Server provides tools for managing issues, projects, milestones, and more.
 
-2. **`linear_update_issue`**: Update existing issues
-   - Required inputs:
-     - `id` (string): Issue ID to update
-   - Optional inputs:
-     - `title` (string): New title
-     - `description` (string): New description
-     - `priority` (number, 0-4): New priority
-     - `status` (string): New status name
+A detailed documentation of all tools, their parameters, examples, and best practices can be found in our [Tools Documentation](./docs/tools.md).
 
-3. **`linear_search_issues`**: Search issues with flexible filtering
-   - Optional inputs:
-     - `query` (string): Text to search in title/description
-     - `teamId` (string): Filter by team
-     - `status` (string): Filter by status
-     - `assigneeId` (string): Filter by assignee
-     - `labels` (string[]): Filter by labels
-     - `priority` (number): Filter by priority
-     - `limit` (number, default: 10): Max results
+Here's a quick overview of the available tools:
 
-4. **`linear_get_user_issues`**: Get issues assigned to a user
-   - Optional inputs:
-     - `userId` (string): User ID (omit for authenticated user)
-     - `includeArchived` (boolean): Include archived issues
-     - `limit` (number, default: 50): Max results
+#### Issue Management
 
-5. **`linear_add_comment`**: Add comments to issues
-   - Required inputs:
-     - `issueId` (string): Issue ID to comment on
-     - `body` (string): Comment text (markdown supported)
-   - Optional inputs:
-     - `createAsUser` (string): Custom username
-     - `displayIconUrl` (string): Custom avatar URL
+- **`linear_create_issue`**: Create new Linear issues
+- **`linear_update_issue`**: Update existing issues
+- **`linear_search_issues`**: Search issues with flexible filtering
+- **`linear_get_user_issues`**: Get issues assigned to a user
+- **`linear_add_comment`**: Add comments to issues
+
+#### Project Management
+
+- **`linear_list_projects`**: List available projects
+- **`linear_get_project`**: Get detailed project information
+- **`linear_create_milestone`**: Create new project milestones
+
+#### Organization
+
+- **`linear_get_labels`**: Get available issue labels
 
 ### Resources
 
