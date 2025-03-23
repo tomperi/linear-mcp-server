@@ -14,6 +14,7 @@ This document provides detailed information about all the tools available in the
   - [linear_list_projects](#linear_list_projects)
   - [linear_get_project](#linear_get_project)
   - [linear_create_milestone](#linear_create_milestone)
+  - [linear_create_document](#linear_create_document)
 - [Organization](#organization)
   - [linear_get_labels](#linear_get_labels)
 
@@ -264,6 +265,33 @@ Creates a new milestone for a specific project in Linear. Milestones help track 
 - Use clear, descriptive names that indicate the goal
 - Add target dates for better project planning
 - Use milestones to group related issues and track progress over time
+
+### linear_create_document
+
+Creates a new document in Linear associated with a specific project. Documents can be used for specifications, meeting notes, or any project-related documentation.
+
+**Required Parameters:**
+
+- `projectId` (string): ID of the project to associate the document with
+- `title` (string): Title of the document
+- `content` (string): Document content in markdown format
+
+**Example:**
+
+```json
+{
+  "projectId": "project-123",
+  "title": "API Documentation",
+  "content": "# API Documentation\n\n## Authentication\n\nThis API uses OAuth2 for authentication. All requests must include a valid access token.\n\n## Endpoints\n\n### GET /users\n\nReturns a list of all users in the system."
+}
+```
+
+**Best Practices:**
+
+- Use meaningful titles that clearly indicate the document's purpose
+- Organize content with markdown headings, lists, and code blocks for better readability
+- Link related documents by including their URLs in the markdown content
+- Group related documents by associating them with the same project
 
 ## Organization
 

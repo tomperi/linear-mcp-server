@@ -6,6 +6,7 @@ import {
   AddCommentArgsSchema,
   CreateIssueArgsSchema,
   CreateMilestoneArgsSchema,
+  CreateDocumentArgsSchema,
   GetLabelsArgsSchema,
   GetProjectArgsSchema,
   ListProjectsArgsSchema,
@@ -225,6 +226,21 @@ export const handleToolRequest = async (
               type: "text",
               text: `Created milestone: ${milestone.name}\nID: ${milestone.id}${targetDateText}\nDescription: ${milestone.description || "None"}`,
               metadata: milestone.metadata || baseResponse,
+            },
+          ],
+        };
+      }
+
+      case "linear_create_document": {
+        const validatedArgs = CreateDocumentArgsSchema.parse(args);
+        const document = await linearClient.createDocument(validatedArgs);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Created document: ${document.title}\nProject: ${document.projectName}\nURL: ${document.url}\n\nYou can view and edit this document in Linear using the link above.`,
+              metadata: document.metadata || baseResponse,
             },
           ],
         };

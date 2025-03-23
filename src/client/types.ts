@@ -70,3 +70,9 @@ export interface CreateMilestoneArgs {
   description?: string;
   targetDate?: string;
 }
+
+export interface CreateDocumentArgs {
+  projectId: string;
+  title: string;
+  content: string;
+}

@@ -20,6 +20,7 @@ import {
   addCommentTool,
   createIssueTool,
   createMilestoneTool,
+  createDocumentTool,
   getLabelsTool,
   getProjectTool,
   listProjectsTool,
@@ -220,6 +221,7 @@ async function main() {
         listProjectsTool,
         getProjectTool,
         createMilestoneTool,
+        createDocumentTool,
       ],
     }));
 

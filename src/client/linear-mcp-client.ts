@@ -18,6 +18,7 @@ import {
   UpdateIssueArgs,
   ListProjectsArgs,
   GetProjectArgs,
+  CreateDocumentArgs,
 } from "./types.js";
 
 export class LinearMCPClient {
@@ -461,6 +462,41 @@ export class LinearMCPClient {
       name: milestone.name,
       description: milestone.description,
       targetDate: milestone.targetDate,
+    });
+  }
+
+  async createDocument(args: CreateDocumentArgs) {
+    const { projectId, title, content } = args;
+
+    const documentPayload = await this.rateLimiter.enqueue(
+      () =>
+        this.client.createDocument({
+          projectId,
+          title,
+          content,
+        }),
+      "createDocument"
+    );
+
+    const document = await documentPayload.document;
+    if (!document) {
+      throw new Error("Failed to create document");
+    }
+
+    const project = document.project
+      ? await this.rateLimiter.enqueue(
+          () => document.project!,
+          "getProjectForDocument"
+        )
+      : undefined;
+
+    return this.addMetricsToResponse({
+      id: document.id,
+      title: document.title,
+      content: document.content,
+      url: document.url,
+      projectId: projectId,
+      projectName: project?.name || "Unknown Project",
     });
   }
 

@@ -96,11 +96,23 @@ export const GetProjectArgsSchema = z.object({
 });
 
 export const CreateMilestoneArgsSchema = z.object({
-  projectId: z.string().describe("ID of the project to create milestone for"),
+  projectId: z
+    .string()
+    .describe("ID of the project to create the milestone for"),
   name: z.string().describe("Name of the milestone"),
   description: z.string().optional().describe("Description of the milestone"),
   targetDate: z
     .string()
     .optional()
-    .describe("Target date for milestone completion (ISO format date string)"),
+    .describe(
+      "Target date for milestone completion (ISO format date string, e.g., '2023-12-31')"
+    ),
+});
+
+export const CreateDocumentArgsSchema = z.object({
+  projectId: z
+    .string()
+    .describe("ID of the project to associate the document with"),
+  title: z.string().describe("Title of the document"),
+  content: z.string().describe("Document content in markdown format"),
 });

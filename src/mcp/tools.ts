@@ -212,3 +212,27 @@ export const createMilestoneTool: Tool = {
     required: ["projectId", "name"],
   },
 };
+
+export const createDocumentTool: Tool = {
+  name: "linear_create_document",
+  description:
+    "Creates a new document in Linear associated with a specific project. Documents can be used for specifications, meeting notes, or any project-related documentation. Required fields are projectId, title, and content (in markdown format).",
+  inputSchema: {
+    type: "object",
+    properties: {
+      projectId: {
+        type: "string",
+        description: "ID of the project to associate the document with",
+      },
+      title: {
+        type: "string",
+        description: "Title of the document",
+      },
+      content: {
+        type: "string",
+        description: "Document content in markdown format",
+      },
+    },
+    required: ["projectId", "title", "content"],
+  },
+};
