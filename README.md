@@ -6,7 +6,7 @@ A [Model Context Protocol](https://github.com/modelcontextprotocol) server for t
 
 This server provides integration with Linear's issue tracking system through MCP, allowing LLMs to interact with Linear issues.
 
-> **Note:** This package is published as a scoped package `@tomperi/linear-mcp-server`. It's currently in beta (v0.1.3).
+> **Note:** This package is published as a scoped package `@tomperi/linear-mcp-server`. It's currently in beta (v0.1.4).
 
 ## Installation
 
@@ -68,6 +68,8 @@ Here's a quick overview of the available tools:
 #### Organization
 
 - **`linear_get_labels`**: Get available issue labels
+- **`linear_get_viewer`**: Get information about the authenticated user
+- **`linear_list_teams`**: List teams in the organization with their details
 
 ### Resources
 

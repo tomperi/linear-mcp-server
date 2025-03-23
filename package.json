@@ -1,6 +1,6 @@
 {
   "name": "@tomperi/linear-mcp-server",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A Model Context Protocol server for the Linear API.",
   "type": "module",
   "bin": {

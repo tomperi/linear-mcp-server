@@ -78,3 +78,11 @@ export interface CreateDocumentArgs {
   title: string;
   content: string;
 }
+
+export interface GetViewerArgs {
+  // This is an empty interface as the getViewer method doesn't require any parameters
+}
+
+export interface ListTeamsArgs {
+  limit?: number;
+}

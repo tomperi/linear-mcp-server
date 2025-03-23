@@ -13,10 +13,12 @@ import {
   GetUserIssuesArgsSchema,
   SearchIssuesArgsSchema,
   UpdateIssueArgsSchema,
+  GetViewerArgsSchema,
+  ListTeamsArgsSchema,
 } from "../client/zod-schemas.js";
 import { z } from "zod";
 import { MCPMetricsResponse } from "./types.js";
-import { Document, ProjectMilestone, ProjectUpdate } from "@linear/sdk";
+import { Document, ProjectMilestone, ProjectUpdate, Team } from "@linear/sdk";
 
 export const handleToolRequest = async (
   request: CallToolRequest,
@@ -241,6 +243,46 @@ export const handleToolRequest = async (
               type: "text",
               text: `Created document: ${document.title}\nProject: ${document.projectName}\nURL: ${document.url}\n\nYou can view and edit this document in Linear using the link above.`,
               metadata: document.metadata || baseResponse,
+            },
+          ],
+        };
+      }
+
+      case "linear_get_viewer": {
+        const validatedArgs = GetViewerArgsSchema.parse(args);
+        const viewer = await linearClient.getViewer();
+
+        // Format the teams in a readable way
+        const teamsText =
+          viewer.teams.length > 0
+            ? `\nTeams:\n${viewer.teams.map((team: Team) => `- ${team.name} (${team.key}) (id: ${team.id})`).join("\n")}`
+            : "\nTeams: None";
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `User: ${viewer.name}\nEmail: ${viewer.email}\nAdmin: ${viewer.admin ? "Yes" : "No"}\nOrganization: ${viewer.organization.name}${teamsText}`,
+              metadata: baseResponse,
+            },
+          ],
+        };
+      }
+
+      case "linear_list_teams": {
+        const validatedArgs = ListTeamsArgsSchema.parse(args);
+        const { teams, metadata } = await linearClient.listTeams(validatedArgs);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Found ${teams.length} teams:\n${teams
+                .map((team) => {
+                  return `- ${team.name} (${team.key})\n  ID: ${team.id}\n  Description: ${team.description || "None"}\n  Members: ${team.membersCount}`;
+                })
+                .join("\n\n")}`,
+              metadata: metadata || baseResponse,
             },
           ],
         };

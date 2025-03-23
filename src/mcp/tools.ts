@@ -244,3 +244,28 @@ export const createDocumentTool: Tool = {
     required: ["projectId", "title", "content"],
   },
 };
+
+export const getViewerTool: Tool = {
+  name: "linear_get_viewer",
+  description:
+    "Retrieves information about the authenticated user in Linear, including their ID, name, email, organization, and teams they belong to. Useful for identifying the current user and their permissions.",
+  inputSchema: {
+    type: "object",
+    properties: {},
+  },
+};
+
+export const listTeamsTool: Tool = {
+  name: "linear_list_teams",
+  description:
+    "Lists teams in the Linear organization with details including ID, name, key, description, color, and member count. Useful for discovering available teams when creating issues or filtering content by team.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      limit: {
+        type: "number",
+        description: "Maximum number of teams to return (default: 10)",
+      },
+    },
+  },
+};

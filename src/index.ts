@@ -27,6 +27,8 @@ import {
   getUserIssuesTool,
   searchIssuesTool,
   updateIssueTool,
+  getViewerTool,
+  listTeamsTool,
 } from "./mcp/tools.js";
 import { handleToolRequest } from "./mcp/tools-handler.js";
 
@@ -110,7 +112,7 @@ async function main() {
     const server = new Server(
       {
         name: "linear-mcp-server",
-        version: "0.1.3",
+        version: "0.1.4",
       },
       {
         capabilities: {
@@ -222,6 +224,8 @@ async function main() {
         getProjectTool,
         createMilestoneTool,
         createDocumentTool,
+        getViewerTool,
+        listTeamsTool,
       ],
     }));
 

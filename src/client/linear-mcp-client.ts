@@ -19,6 +19,7 @@ import {
   ListProjectsArgs,
   GetProjectArgs,
   CreateDocumentArgs,
+  ListTeamsArgs,
 } from "./types.js";
 
 export class LinearMCPClient {
@@ -500,6 +501,34 @@ export class LinearMCPClient {
       projectId: projectId,
       projectName: project?.name || "Unknown Project",
     });
+  }
+
+  async listTeams(args?: ListTeamsArgs) {
+    const limit = args?.limit || 10;
+
+    const organization = await this.client.organization;
+    const teams = await this.rateLimiter.enqueue(
+      () => organization.teams({ first: limit }),
+      "listTeams"
+    );
+
+    const teamsData = await Promise.all(
+      teams.nodes.map(async (team) => {
+        const members = await team.members();
+        return {
+          id: team.id,
+          name: team.name,
+          key: team.key,
+          description: team.description,
+          color: team.color,
+          membersCount: members.nodes.length,
+        };
+      })
+    );
+
+    const metadata = this.addMetricsToResponse(teamsData);
+
+    return { teams: teamsData, metadata };
   }
 
   private buildSearchFilter(args: SearchIssuesArgs): any {

@@ -124,3 +124,14 @@ export const CreateDocumentArgsSchema = z.object({
   title: z.string().describe("Title of the document"),
   content: z.string().describe("Document content in markdown format"),
 });
+
+export const GetViewerArgsSchema = z.object({
+  // Empty schema as getViewer doesn't require any parameters
+});
+
+export const ListTeamsArgsSchema = z.object({
+  limit: z
+    .number()
+    .optional()
+    .describe("Maximum number of teams to return (default: 10)"),
+});

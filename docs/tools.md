@@ -17,6 +17,8 @@ This document provides detailed information about all the tools available in the
   - [linear_create_document](#linear_create_document)
 - [Organization](#organization)
   - [linear_get_labels](#linear_get_labels)
+  - [linear_get_viewer](#linear_get_viewer)
+  - [linear_list_teams](#linear_list_teams)
 
 ## Issue Management
 
@@ -334,3 +336,80 @@ Retrieves all available issue labels in the Linear workspace.
 - Use this tool to discover available label options
 - Use the returned label IDs when creating or updating issues
 - Labels help categorize and filter issues effectively
+
+### linear_get_viewer
+
+Retrieves information about the authenticated user in Linear, including their ID, name, email, organization, and teams they belong to.
+
+**Parameters:**
+
+- None required
+
+**Example:**
+
+```json
+{}
+```
+
+**Response Example:**
+
+```
+User: Jane Doe
+Email: jane@example.com
+Admin: Yes
+Organization: Example Organization
+Teams:
+- Engineering (ENG)
+- Product (PRD)
+```
+
+**Best Practices:**
+
+- Use this tool to identify the current user's context
+- Helpful for understanding which teams the user belongs to
+- Use the team information to create issues in the appropriate teams
+- Useful for personalized workspace analysis and recommendations
+
+### linear_list_teams
+
+Lists teams in the Linear organization with details including ID, name, key, description, color, and member count.
+
+**Optional Parameters:**
+
+- `limit` (number): Maximum number of teams to return (default: 10)
+
+**Example:**
+
+```json
+{
+  "limit": 20
+}
+```
+
+**Response Example:**
+
+```
+Found 3 teams:
+
+- Engineering (ENG)
+  ID: team-123
+  Description: Core engineering team
+  Members: 12
+
+- Product (PRD)
+  ID: team-456
+  Description: Product management and design
+  Members: 8
+
+- Operations (OPS)
+  ID: team-789
+  Description: Customer support and operations
+  Members: 6
+```
+
+**Best Practices:**
+
+- Use this tool to discover available teams before creating issues
+- Use the returned team IDs when creating issues with `linear_create_issue`
+- Helpful for understanding the organization structure
+- The member count can help identify team size and distribution
